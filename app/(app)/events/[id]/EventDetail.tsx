@@ -1,16 +1,22 @@
 'use client'
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Plus, Trash2, ChevronLeft, ShoppingCart, ExternalLink, Package } from 'lucide-react'
+import { Plus, Trash2, ChevronLeft, ShoppingCart, ExternalLink, Package, BookmarkPlus, Check, Search, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cycleEventStatus, addRecipeToEvent, removeRecipeFromEvent, updateEventRecipe, updateEvent, addEventItem, removeEventItem, updateEventItemQuantity } from '../actions'
 import { createRecipe } from '../../recipes/actions'
+import { saveEventAsTemplate, useTemplateForEvent } from '@/app/(app)/templates/actions'
+import { EVENT_TYPE_OPTIONS } from '@/lib/constants'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { calculatePricingWaterfall, calculateEventSummary, formatCurrency, formatPct } from '@/lib/pricing/engine'
 import type { EventPricingSettings, EventItemEntry } from '@/lib/pricing/engine'
 import { MarginBadge } from '@/components/common/MarginBadge'
@@ -53,6 +59,8 @@ export function EventDetail({
   const [selectedRecipeId, setSelectedRecipeId] = useState('')
   const [newRecipeName, setNewRecipeName] = useState('')
   const [loading, setLoading] = useState(false)
+  const [addRecipeOpen, setAddRecipeOpen] = useState(false)
+  const [addRecipeSearch, setAddRecipeSearch] = useState('')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Event items state
@@ -107,10 +115,11 @@ export function EventDetail({
     await cycleEventStatus(event.id, event.recipe_status)
   }
 
-  const handleAddRecipe = async () => {
-    if (!selectedRecipeId) return
+  const handleUseTemplate = async (templateId: string) => {
+    setAddRecipeOpen(false)
+    setAddRecipeSearch('')
     setLoading(true)
-    const { error } = await addRecipeToEvent(event.id, selectedRecipeId)
+    const { error } = await useTemplateForEvent(templateId, event.id)
     if (!error) {
       window.location.reload()
     }
@@ -255,7 +264,47 @@ export function EventDetail({
       )
     : null
 
-  const addedRecipeIds = new Set(event.event_recipes.map(er => er.recipes.id))
+  const groupedTemplates = useMemo(() => {
+    const q = addRecipeSearch.toLowerCase()
+    const filtered = allRecipes.filter(r => !q || r.name.toLowerCase().includes(q))
+    const groups = new Map<string, typeof allRecipes>()
+    for (const r of filtered) {
+      const key = r.event_type ?? 'other'
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(r)
+    }
+    const result: { label: string; recipes: typeof allRecipes }[] = []
+    for (const { value, label } of EVENT_TYPE_OPTIONS) {
+      const group = groups.get(value)
+      if (group?.length) result.push({ label, recipes: group })
+    }
+    return result
+  }, [allRecipes, addRecipeSearch])
+
+  // Save as Template dialog state
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [templateName, setTemplateName] = useState(event.name)
+  const [templateLoading, setTemplateLoading] = useState(false)
+  const [templateError, setTemplateError] = useState<string | null>(null)
+  const [templateSavedId, setTemplateSavedId] = useState<string | null>(null)
+
+  const handleSaveAsTemplate = async () => {
+    const name = templateName.trim()
+    if (!name) return
+    setTemplateLoading(true)
+    setTemplateError(null)
+    const { data, error } = await saveEventAsTemplate(event.id, name)
+    setTemplateLoading(false)
+    if (error) { setTemplateError(error); return }
+    setTemplateSavedId(data?.id ?? null)
+  }
+
+  const openTemplateDialog = () => {
+    setTemplateName(event.name)
+    setTemplateError(null)
+    setTemplateSavedId(null)
+    setTemplateDialogOpen(true)
+  }
 
   // Determine if the add-item form is ready to submit
   const canAddItem =
@@ -285,12 +334,70 @@ export function EventDetail({
             {event.venue && ` · ${event.venue}`}
           </p>
         </div>
+        <Button variant="outline" size="sm" onClick={openTemplateDialog}>
+          <BookmarkPlus className="w-4 h-4 mr-1.5" /> Save as Template
+        </Button>
         <Link href={`/orders?event=${event.id}`}>
           <Button variant="outline" size="sm">
             <ShoppingCart className="w-4 h-4 mr-1.5" /> Generate Order
           </Button>
         </Link>
       </div>
+
+      {/* ─── Save as Template Dialog ────────────────────────────── */}
+      <Dialog open={templateDialogOpen} onOpenChange={open => { if (!open) setTemplateDialogOpen(false) }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-[#2D5016]">Save as Event Template</DialogTitle>
+          </DialogHeader>
+          {templateSavedId ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-4 text-center">
+              <div className="w-12 h-12 rounded-full bg-[#2D5016]/10 flex items-center justify-center mx-auto mb-3">
+                <Check className="w-5 h-5 text-[#2D5016]" />
+              </div>
+              <p className="font-medium text-[#4A3F35] mb-1">Template saved!</p>
+              <p className="text-sm text-[#A89880] mb-4">Your event template is ready to reuse.</p>
+              <div className="flex items-center justify-center gap-2">
+                <Button variant="ghost" onClick={() => setTemplateDialogOpen(false)} className="text-[#A89880]">Close</Button>
+                <Button asChild className="bg-[#2D5016] hover:bg-[#2D5016]/90 text-white">
+                  <Link href="/templates?tab=events" onClick={() => setTemplateDialogOpen(false)}>
+                    View in Templates →
+                  </Link>
+                </Button>
+              </div>
+            </motion.div>
+          ) : (
+            <>
+              <p className="text-sm text-[#A89880]">
+                Creates a reusable template with all recipes, items, and pricing settings from this event.
+              </p>
+              <div className="space-y-1.5">
+                <Label>Template name</Label>
+                <Input
+                  value={templateName}
+                  onChange={e => setTemplateName(e.target.value)}
+                  placeholder="e.g. Summer Wedding Package"
+                />
+              </div>
+              {templateError && (
+                <p className="text-sm text-red-600">{templateError}</p>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setTemplateDialogOpen(false)} disabled={templateLoading}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveAsTemplate}
+                  disabled={templateLoading || !templateName.trim()}
+                  className="bg-[#2D5016] hover:bg-[#2D5016]/90 text-white"
+                >
+                  {templateLoading ? 'Saving…' : 'Save as Template'}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-3 gap-6">
         {/* Left column: recipes + event items */}
@@ -364,9 +471,9 @@ export function EventDetail({
           )}
 
           {/* Add recipe */}
-          <div className="flex items-center gap-3 mt-4">
+          <div className="mt-4">
             {selectedRecipeId === '__new__' ? (
-              <>
+              <div className="flex items-center gap-3">
                 <input
                   autoFocus
                   type="text"
@@ -385,26 +492,68 @@ export function EventDetail({
                 <Button variant="ghost" size="sm" onClick={() => { setSelectedRecipeId(''); setNewRecipeName('') }}>
                   Cancel
                 </Button>
-              </>
+              </div>
             ) : (
-              <>
-                <Select value={selectedRecipeId} onValueChange={setSelectedRecipeId}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Add a recipe…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__new__" className="text-[#2D5016] font-medium">
-                      + New recipe…
-                    </SelectItem>
-                    {allRecipes.filter(r => !addedRecipeIds.has(r.id)).map(r => (
-                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+              <Popover open={addRecipeOpen} onOpenChange={setAddRecipeOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    disabled={loading}
+                    className="w-full h-9 px-3 text-sm text-left rounded-md border border-[#E8E0D8] bg-white text-[#A89880] hover:bg-[#F5F1EC] flex items-center justify-between transition-colors disabled:opacity-50"
+                  >
+                    <span>Add a recipe template…</span>
+                    <ChevronDown className="w-4 h-4 opacity-50 shrink-0" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" sideOffset={4} className="w-[var(--radix-popover-trigger-width)] min-w-[280px] p-0">
+                  {/* Search */}
+                  <div className="flex items-center gap-2 px-3 py-2 border-b border-[#E8E0D8]">
+                    <Search className="w-3.5 h-3.5 text-[#A89880] shrink-0" />
+                    <input
+                      autoFocus
+                      value={addRecipeSearch}
+                      onChange={e => setAddRecipeSearch(e.target.value)}
+                      placeholder="Search templates…"
+                      className="flex-1 text-sm outline-none text-[#4A3F35] placeholder:text-[#A89880] bg-transparent"
+                    />
+                  </div>
+
+                  <div className="max-h-72 overflow-y-auto py-1">
+                    {/* New recipe option — always shown when not searching */}
+                    {!addRecipeSearch && (
+                      <button
+                        onClick={() => { setAddRecipeOpen(false); setSelectedRecipeId('__new__') }}
+                        className="w-full text-left px-3 py-2 text-sm font-medium text-forest hover:bg-muted"
+                      >
+                        + New recipe…
+                      </button>
+                    )}
+
+                    {/* Grouped templates */}
+                    {groupedTemplates.map(({ label, recipes }) => (
+                      <div key={label}>
+                        <p className="px-3 pt-2 pb-1 text-[10px] font-semibold text-subtle uppercase tracking-widest">
+                          {label}
+                        </p>
+                        {recipes.map(r => (
+                          <button
+                            key={r.id}
+                            onClick={() => handleUseTemplate(r.id)}
+                            className="w-full text-left px-3 py-1.5 text-sm text-body hover:bg-muted"
+                          >
+                            {r.name}
+                          </button>
+                        ))}
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
-                <Button onClick={handleAddRecipe} disabled={!selectedRecipeId || loading} size="sm">
-                  <Plus className="w-4 h-4 mr-1.5" /> Add Recipe
-                </Button>
-              </>
+
+                    {groupedTemplates.length === 0 && (
+                      <p className="px-3 py-4 text-sm text-center text-subtle">
+                        {addRecipeSearch ? 'No templates match your search.' : 'No templates yet. Create one in the Templates library.'}
+                      </p>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
           </div>
 

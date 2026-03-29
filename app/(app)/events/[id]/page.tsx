@@ -17,7 +17,7 @@ export default async function EventDetailPage({ params }: Props) {
       .eq('id', id)
       .eq('studio_id', studioId)
       .single(),
-    admin.from('recipes').select('id, name, event_type, status').eq('studio_id', studioId).neq('status', 'archived').order('name'),
+    admin.from('recipes').select('id, name, event_type, status').eq('studio_id', studioId).eq('is_template', true).neq('status', 'archived').order('name'),
     admin.from('studio_settings').select('*').eq('studio_id', studioId).single(),
     admin.from('hard_goods').select('*').eq('studio_id', studioId).eq('is_active', true).order('name'),
     admin.from('rentals').select('*').eq('studio_id', studioId).eq('is_active', true).order('name'),
