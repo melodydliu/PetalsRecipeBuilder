@@ -38,12 +38,14 @@ interface FlowersTabProps {
 interface FlowerForm {
   name: string; variety: string; color_name: string; color_hex: string
   unit: string; stems_per_bunch: string; wholesale_cost_per_stem: string
+  wholesale_cost_per_bunch: string
   supplier: string; notes: string; seasonal_months: number[]
 }
 
 const emptyForm: FlowerForm = {
   name: '', variety: '', color_name: '', color_hex: '',
   unit: 'stem', stems_per_bunch: '10', wholesale_cost_per_stem: '0',
+  wholesale_cost_per_bunch: '0',
   supplier: '', notes: '', seasonal_months: [],
 }
 
@@ -71,6 +73,7 @@ export function FlowersTab({ flowers, onUpdate }: FlowersTabProps) {
       name: f.name, variety: f.variety ?? '', color_name: f.color_name ?? '',
       color_hex: f.color_hex ?? '', unit: f.unit, stems_per_bunch: String(f.stems_per_bunch),
       wholesale_cost_per_stem: String(f.wholesale_cost_per_stem),
+      wholesale_cost_per_bunch: String((f.wholesale_cost_per_stem * f.stems_per_bunch).toFixed(2)),
       supplier: f.supplier ?? '', notes: f.notes ?? '',
       seasonal_months: f.seasonal_months ?? [],
     })
@@ -208,6 +211,8 @@ export function FlowersTab({ flowers, onUpdate }: FlowersTabProps) {
               <th className="text-left px-4 py-3 text-xs font-semibold text-[#A89880] uppercase tracking-wide">Color</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-[#A89880] uppercase tracking-wide">Unit</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-[#A89880] uppercase tracking-wide">Cost/Stem</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-[#A89880] uppercase tracking-wide">Stems/Bunch</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-[#A89880] uppercase tracking-wide">Bunch Cost</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-[#A89880] uppercase tracking-wide">Supplier</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-[#A89880] uppercase tracking-wide">Season</th>
               <th className="px-4 py-3"></th>
@@ -249,6 +254,14 @@ export function FlowersTab({ flowers, onUpdate }: FlowersTabProps) {
                   <td className="px-4 py-3 text-right">
                     <span className="font-mono text-sm font-medium text-[#4A3F35]">
                       ${Number(flower.wholesale_cost_per_stem).toFixed(2)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className="font-mono text-sm text-[#4A3F35]">{flower.stems_per_bunch}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className="font-mono text-sm text-[#4A3F35]">
+                      ${(Number(flower.wholesale_cost_per_stem) * flower.stems_per_bunch).toFixed(2)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-[#A89880]">{flower.supplier || '—'}</td>
@@ -341,6 +354,24 @@ function FlowerFormFields({
   const set = (key: keyof FlowerForm, value: string | number[]) =>
     onChange({ ...form, [key]: value })
 
+  const setStemsPerBunch = (value: string) => {
+    const stems = parseFloat(value) || 1
+    const stemCost = parseFloat(form.wholesale_cost_per_stem) || 0
+    onChange({ ...form, stems_per_bunch: value, wholesale_cost_per_bunch: (stemCost * stems).toFixed(2) })
+  }
+
+  const setCostPerStem = (value: string) => {
+    const stemCost = parseFloat(value) || 0
+    const stems = parseFloat(form.stems_per_bunch) || 1
+    onChange({ ...form, wholesale_cost_per_stem: value, wholesale_cost_per_bunch: (stemCost * stems).toFixed(2) })
+  }
+
+  const setCostPerBunch = (value: string) => {
+    const bunchCost = parseFloat(value) || 0
+    const stems = parseFloat(form.stems_per_bunch) || 1
+    onChange({ ...form, wholesale_cost_per_bunch: value, wholesale_cost_per_stem: (bunchCost / stems).toFixed(4).replace(/\.?0+$/, '') })
+  }
+
   return (
     <div className="grid grid-cols-2 gap-4">
       <div className="space-y-1.5">
@@ -393,11 +424,15 @@ function FlowerFormFields({
       </div>
       <div className="space-y-1.5">
         <Label>Stems per bunch</Label>
-        <Input type="number" min="1" value={form.stems_per_bunch} onChange={e => set('stems_per_bunch', e.target.value)} />
+        <Input type="number" min="1" value={form.stems_per_bunch} onChange={e => setStemsPerBunch(e.target.value)} />
       </div>
       <div className="space-y-1.5">
         <Label>Wholesale cost/stem ($)</Label>
-        <Input type="number" step="0.01" min="0" value={form.wholesale_cost_per_stem} onChange={e => set('wholesale_cost_per_stem', e.target.value)} />
+        <Input type="number" step="0.01" min="0" value={form.wholesale_cost_per_stem} onChange={e => setCostPerStem(e.target.value)} />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Wholesale cost/bunch ($)</Label>
+        <Input type="number" step="0.01" min="0" value={form.wholesale_cost_per_bunch} onChange={e => setCostPerBunch(e.target.value)} />
       </div>
       <div className="space-y-1.5">
         <Label>Supplier</Label>

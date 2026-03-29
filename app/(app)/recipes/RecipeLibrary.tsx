@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, LayoutGrid, List, Copy, Archive, Calendar, Filter } from 'lucide-react'
@@ -129,7 +129,7 @@ export function RecipeLibrary({
   }, [recipes, search, filterStatus, filterEventType, sortBy, defaultFlowerMarkup, defaultHardGoodsMarkup])
 
   // Keyboard shortcut: N = new recipe
-  useState(() => {
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !(document.activeElement instanceof HTMLInputElement)) {
         handleNewRecipe()
@@ -137,7 +137,8 @@ export function RecipeLibrary({
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div>

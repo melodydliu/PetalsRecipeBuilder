@@ -33,6 +33,7 @@ npm run build  # node node_modules/next/dist/bin/next build
 app/
   (app)/          # Authenticated routes — layout fetches user+member+studio
     dashboard/
+    templates/    # Template library (recipes with is_template = true)
     recipes/
       [id]/       # RecipeBuilder (client, ~1000 lines)
     events/
@@ -62,6 +63,8 @@ app/
 | `lib/utils.ts` | Shared helpers: `cn`, `formatCurrency`, `formatPct`, etc. |
 | `lib/supabase/get-member.ts` | Auth helpers used in layouts + actions |
 | `app/(app)/layout.tsx` | Authenticated shell — Server Component |
+| `app/(app)/templates/` | Template library — `page.tsx` + `TemplatesLibrary.tsx` + `actions.ts` |
+| `components/common/PaletteStrip.tsx` | Color palette row — used in recipes, templates, events |
 
 ---
 
@@ -180,6 +183,8 @@ flowers            — catalog: name, variety, color, cost/stem, stems/bunch
 hard_goods         — catalog: name, unit, cost
 rentals            — catalog: name, cost, uses_per_rental
 recipes            — floral recipe with pricing settings
+                     is_template: bool — true = appears in /templates
+                     style_tags: text[] — e.g. ['garden', 'romantic'] (migration 004)
 recipe_items       — line items (flower | hard_good | rental | misc)
 events             — client events
 event_recipes      — junction: event ↔ recipe (with quantity)
@@ -187,6 +192,18 @@ event_items        — ad-hoc line items on events
 ```
 
 Full schema with RLS: `supabase/migrations/001_initial.sql`
+
+---
+
+## Templates System
+
+`/templates` shows only recipes where `is_template = true`. The recipe builder (`/recipes/[id]`) has a Template toggle in the header that sets this flag and saves immediately (bypassing the autosave debounce).
+
+**"Use Template" flow:** creates a fresh recipe copy (`is_template = false`) with all items, links it to the selected event via `event_recipes`, then revalidates both `/templates` and `/events/[id]`.
+
+**Cross-route revalidation:** any mutation that changes `is_template` or recipe status must call `revalidatePath('/templates')` in addition to `/recipes`.
+
+**Style tags:** stored as `text[]` on the `recipes` table (migration `004_style_tags.sql`). The templates page gracefully falls back to a query without `style_tags` if the migration hasn't been applied yet — remove that fallback once confirmed deployed.
 
 ---
 
@@ -199,3 +216,5 @@ Full schema with RLS: `supabase/migrations/001_initial.sql`
 - Don't omit `Relationships: []` on new DB types — Supabase will resolve queries to `never`
 - Don't use `undefined` for nullable DB fields in inserts — use `null`
 - Don't expose `SUPABASE_SERVICE_ROLE_KEY` to the client — admin client is server-only
+- Don't use `useState` for DOM side effects (`window`, `document`) — use `useEffect`; `useState` initializers run on the server during SSR even in `'use client'` components
+- Don't use the autosave debounce (`updateLocal`) for deliberate one-click actions — call `updateRecipe` directly for toggles and explicit saves

@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation'
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/catalog',   label: 'Catalog',   icon: Flower },
-  { href: '/recipes',   label: 'Recipes',   icon: BookOpen },
+  { href: '/templates', label: 'Templates', icon: BookOpen },
   { href: '/events',    label: 'Events',    icon: Calendar },
   { href: '/orders',    label: 'Orders',    icon: ShoppingCart },
 ]
@@ -31,8 +31,8 @@ export function Sidebar({ studioName = 'My Studio', userEmail }: SidebarProps) {
 
   const handleSignOut = async () => {
     const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/auth/login')
+    const { error } = await supabase.auth.signOut()
+    if (!error) router.push('/auth/login')
   }
 
   return (

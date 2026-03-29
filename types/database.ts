@@ -251,6 +251,7 @@ export interface Database {
           target_retail_price: number | null
           status: RecipeStatus
           is_template: boolean
+          style_tags: string[]
           share_token: string | null
           share_token_active: boolean
           notes: string | null
@@ -278,6 +279,7 @@ export interface Database {
           target_retail_price?: number | null
           status?: RecipeStatus
           is_template?: boolean
+          style_tags?: string[] | null
           share_token?: string | null
           share_token_active?: boolean
           notes?: string | null

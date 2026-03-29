@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   Copy, Share2, Archive, Plus, Search, GripVertical, Trash2,
   ArrowRightLeft, AlertTriangle, ChevronDown, ExternalLink, Check,
-  ToggleLeft, ToggleRight, ChevronLeft,
+  ToggleLeft, ToggleRight, ChevronLeft, Bookmark, BookmarkCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,7 +24,7 @@ import {
   reorderRecipeItems, duplicateRecipe, archiveRecipe, toggleShareToken,
 } from '../actions'
 import { calculatePricingWaterfall, calculateWorkBack, formatCurrency, formatPct } from '@/lib/pricing/engine'
-import { isSeasonalWarning } from '@/lib/utils'
+import { isSeasonalWarning, cn } from '@/lib/utils'
 import type { Recipe, RecipeItem, Flower, HardGood, Rental, StudioSettings } from '@/types/database'
 import { EVENT_TYPE_OPTIONS } from '@/lib/constants'
 
@@ -61,6 +61,7 @@ export function RecipeBuilder({
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [isTemplateToggling, setIsTemplateToggling] = useState(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Resolve settings (recipe-level overrides or studio defaults)
@@ -229,6 +230,15 @@ export function RecipeBuilder({
     await reorderRecipeItems(reordered.map(i => ({ id: i.id, sort_order: i.sort_order })))
   }
 
+  // Bypass debounce — template toggle is a deliberate action, save immediately
+  const handleToggleTemplate = async () => {
+    const newValue = !recipe.is_template
+    setIsTemplateToggling(true)
+    setRecipe(r => ({ ...r, is_template: newValue }))
+    await updateRecipe(recipe.id, { is_template: newValue })
+    setIsTemplateToggling(false)
+  }
+
   const handleShare = async () => {
     const { shareToken } = await toggleShareToken(recipe.id, true)
     if (shareToken) {
@@ -335,6 +345,31 @@ export function RecipeBuilder({
               >
                 {recipe.status}
               </Badge>
+
+              {/* Template toggle */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleToggleTemplate}
+                    disabled={isTemplateToggling}
+                    className={cn(
+                      'flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1 font-medium transition-colors shrink-0',
+                      recipe.is_template
+                        ? 'bg-[#2D5016]/10 text-[#2D5016] hover:bg-[#2D5016]/20'
+                        : 'text-[#A89880] hover:bg-[#F5F1EC] hover:text-[#4A3F35]'
+                    )}
+                  >
+                    {recipe.is_template
+                      ? <BookmarkCheck className="w-3.5 h-3.5" />
+                      : <Bookmark className="w-3.5 h-3.5" />
+                    }
+                    Template
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {recipe.is_template ? 'Remove from Templates' : 'Save as Template'}
+                </TooltipContent>
+              </Tooltip>
 
               {/* Spacer */}
               <div className="flex-1" />

@@ -81,6 +81,7 @@ export async function updateRecipe(id: string, input: Partial<Recipe>): Promise<
     if (error) return { error: error.message }
     revalidatePath(`/recipes/${id}`)
     revalidatePath('/recipes')
+    revalidatePath('/templates')
     return {}
   } catch (e) {
     return { error: (e as Error).message }
@@ -122,6 +123,7 @@ export async function duplicateRecipe(id: string): Promise<{ data?: Recipe; erro
         target_retail_price: original.target_retail_price,
         status: 'draft',
         is_template: original.is_template,
+        style_tags: original.style_tags,
         share_token_active: false,
         notes: original.notes,
         moodboard_url: original.moodboard_url,
@@ -142,6 +144,7 @@ export async function duplicateRecipe(id: string): Promise<{ data?: Recipe; erro
     }
 
     revalidatePath('/recipes')
+    revalidatePath('/templates')
     return { data: newRecipe as Recipe }
   } catch (e) {
     return { error: (e as Error).message }
