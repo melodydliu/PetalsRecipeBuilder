@@ -356,6 +356,7 @@ export interface Database {
           tax_rate: number | null
           margin_target: number | null
           notes: string | null
+          is_template: boolean
           created_at: string
           updated_at: string
         }
@@ -376,6 +377,7 @@ export interface Database {
           tax_rate?: number | null
           margin_target?: number | null
           notes?: string | null
+          is_template?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -418,6 +420,39 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['event_items']['Insert']>
         Relationships: [
           { foreignKeyName: 'event_items_event_id_fkey'; columns: ['event_id']; isOneToOne: false; referencedRelation: 'events'; referencedColumns: ['id'] }
+        ]
+      }
+      event_quote_items: {
+        Row: {
+          id: string
+          event_id: string
+          category: string
+          item_name: string
+          quantity: number
+          unit_price: number
+          fee_type: 'flat' | 'percentage' | null
+          notes: string | null
+          sort_order: number
+          recipe_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          event_id: string
+          category?: string
+          item_name: string
+          quantity?: number
+          unit_price?: number
+          fee_type?: 'flat' | 'percentage' | null
+          notes?: string | null
+          sort_order?: number
+          recipe_id?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['event_quote_items']['Insert']>
+        Relationships: [
+          { foreignKeyName: 'event_quote_items_event_id_fkey'; columns: ['event_id']; isOneToOne: false; referencedRelation: 'events'; referencedColumns: ['id'] },
+          { foreignKeyName: 'event_quote_items_recipe_id_fkey'; columns: ['recipe_id']; isOneToOne: false; referencedRelation: 'recipes'; referencedColumns: ['id'] }
         ]
       }
       event_recipes: {
@@ -493,3 +528,4 @@ export type RecipeItem = Database['public']['Tables']['recipe_items']['Row']
 export type Event = Database['public']['Tables']['events']['Row']
 export type EventRecipe = Database['public']['Tables']['event_recipes']['Row']
 export type EventItem = Database['public']['Tables']['event_items']['Row']
+export type EventQuoteItem = Database['public']['Tables']['event_quote_items']['Row']

@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cycleEventStatus, addRecipeToEvent, removeRecipeFromEvent, updateEventRecipe, updateEvent, addEventItem, removeEventItem, updateEventItemQuantity } from '../actions'
+import { EventQuoteSection } from './EventQuoteSection'
+import type { QuoteItemWithRecipe } from './EventQuoteSection'
 import { createRecipe } from '../../recipes/actions'
 import { saveEventAsTemplate, useTemplateForEvent } from '@/app/(app)/templates/actions'
 import { EVENT_TYPE_OPTIONS } from '@/lib/constants'
@@ -46,6 +48,7 @@ export function EventDetail({
   role,
   hardGoods,
   rentals,
+  quoteItems,
 }: {
   event: EventFull
   allRecipes: Pick<Recipe, 'id' | 'name' | 'event_type' | 'status'>[]
@@ -53,6 +56,7 @@ export function EventDetail({
   role: string
   hardGoods: HardGood[]
   rentals: Rental[]
+  quoteItems: QuoteItemWithRecipe[]
 }) {
   const router = useRouter()
   const [event, setEvent] = useState(initialEvent)
@@ -399,470 +403,103 @@ export function EventDetail({
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* Left column: recipes + event items */}
-        <div className="col-span-2 space-y-3">
-          {/* ── Recipes ── */}
-          {event.event_recipes.map(er => {
-            const recipe = er.recipes
-            const wf = showPricing ? calculatePricingWaterfall(
-              recipe.recipe_items.map((i, idx) => ({
-                id: i.id, itemType: i.item_type, itemName: i.item_name,
-                itemVariety: i.item_variety, itemColorName: i.item_color_name,
-                itemColorHex: i.item_color_hex, itemUnit: i.item_unit,
-                itemImageUrl: i.item_image_url,
-                wholesaleCostSnapshot: Number(i.wholesale_cost_snapshot),
-                quantity: Number(i.quantity), notes: i.notes, sortOrder: idx,
-              })),
-              {
-                flowerMarkup: recipe.flower_markup ?? settings?.default_flower_markup ?? 3.5,
-                hardGoodsMarkup: recipe.hardgoods_markup ?? settings?.default_hardgoods_markup ?? 2.5,
-                rentalMarkup: recipe.rental_markup ?? settings?.default_rental_markup ?? 2.5,
-                laborMode: recipe.labor_mode ?? settings?.default_labor_mode ?? 'percentage',
-                designFeePct: recipe.design_fee_pct ?? settings?.default_design_fee_pct ?? 30,
-                prepHours: recipe.prep_hours ?? 0, prepRate: recipe.prep_rate ?? settings?.default_prep_rate ?? 35,
-                designHours: recipe.design_hours ?? 0, designRate: recipe.design_rate ?? settings?.default_design_rate ?? 65,
-                deliveryFee: 0, setupFee: 0, teardownFee: 0,
-                deliveryFeeType: 'flat' as const, setupFeeType: 'flat' as const, teardownFeeType: 'flat' as const,
-                taxRate: 0,
-                marginTarget: eventSettings.marginTarget,
-              }
-            ) : null
+      {/* ── Event Summary — horizontal strip ─────────────────── */}
+      {false && showPricing && summary && (
+        <div className="bg-white rounded-xl border border-[#E8E0D8] mb-6 overflow-hidden">
+          <div className="flex items-stretch divide-x divide-[#E8E0D8]">
 
-            return (
-              <div key={er.id} className="bg-white rounded-xl border border-[#E8E0D8] px-5 py-4 flex items-center gap-4 group">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Link href={`/recipes/${recipe.id}?from=${event.id}`} className="font-medium text-[#4A3F35] hover:text-[#2D5016] flex items-center gap-1">
-                      {recipe.name}
-                      <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </Link>
-                    {showPricing && wf && (
-                      <MarginBadge marginPct={wf.grossMarginPct} marginTarget={eventSettings.marginTarget} size="sm" />
-                    )}
-                  </div>
-                  {showPricing && wf && (
-                    <p className="text-sm text-[#A89880] mt-0.5">
-                      {formatCurrency(wf.recipeSubtotal)} each · {formatCurrency(wf.recipeSubtotal * er.quantity)} total
-                    </p>
-                  )}
-                </div>
-
-                {/* Quantity */}
-                <div className="flex items-center gap-1">
-                  <button onClick={() => handleQtyChange(er.id, Math.max(1, er.quantity - 1))}
-                    className="w-7 h-7 rounded-md bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center">–</button>
-                  <span className="w-8 text-center text-sm font-medium">{er.quantity}×</span>
-                  <button onClick={() => handleQtyChange(er.id, er.quantity + 1)}
-                    className="w-7 h-7 rounded-md bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center">+</button>
-                </div>
-
-                <Button size="icon-sm" variant="ghost" onClick={() => handleRemoveRecipe(er.id)}>
-                  <Trash2 className="w-3.5 h-3.5 text-[#C0392B]" />
-                </Button>
-              </div>
-            )
-          })}
-
-          {event.event_recipes.length === 0 && (
-            <div className="bg-white rounded-xl border border-[#E8E0D8] py-12 text-center">
-              <p className="text-sm text-[#A89880]">No recipes added yet. Search your recipe library below.</p>
-            </div>
-          )}
-
-          {/* Add recipe */}
-          <div className="mt-4">
-            {selectedRecipeId === '__new__' ? (
-              <div className="flex items-center gap-3">
-                <input
-                  autoFocus
-                  type="text"
-                  value={newRecipeName}
-                  onChange={e => setNewRecipeName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleCreateRecipe()
-                    if (e.key === 'Escape') { setSelectedRecipeId(''); setNewRecipeName('') }
-                  }}
-                  placeholder="Recipe name…"
-                  className="flex-1 h-9 rounded-md border border-[#E8E0D8] bg-white px-3 text-sm text-[#4A3F35] placeholder:text-[#A89880] outline-none focus:ring-1 focus:ring-[#2D5016]"
-                />
-                <Button onClick={handleCreateRecipe} disabled={!newRecipeName.trim() || loading} size="sm">
-                  <Plus className="w-4 h-4 mr-1.5" /> Create & Open
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => { setSelectedRecipeId(''); setNewRecipeName('') }}>
-                  Cancel
-                </Button>
-              </div>
-            ) : (
-              <Popover open={addRecipeOpen} onOpenChange={setAddRecipeOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    disabled={loading}
-                    className="w-full h-9 px-3 text-sm text-left rounded-md border border-[#E8E0D8] bg-white text-[#A89880] hover:bg-[#F5F1EC] flex items-center justify-between transition-colors disabled:opacity-50"
-                  >
-                    <span>Add a recipe template…</span>
-                    <ChevronDown className="w-4 h-4 opacity-50 shrink-0" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" sideOffset={4} className="w-[var(--radix-popover-trigger-width)] min-w-[280px] p-0">
-                  {/* Search */}
-                  <div className="flex items-center gap-2 px-3 py-2 border-b border-[#E8E0D8]">
-                    <Search className="w-3.5 h-3.5 text-[#A89880] shrink-0" />
-                    <input
-                      autoFocus
-                      value={addRecipeSearch}
-                      onChange={e => setAddRecipeSearch(e.target.value)}
-                      placeholder="Search templates…"
-                      className="flex-1 text-sm outline-none text-[#4A3F35] placeholder:text-[#A89880] bg-transparent"
-                    />
-                  </div>
-
-                  <div className="max-h-72 overflow-y-auto py-1">
-                    {/* New recipe option — always shown when not searching */}
-                    {!addRecipeSearch && (
-                      <button
-                        onClick={() => { setAddRecipeOpen(false); setSelectedRecipeId('__new__') }}
-                        className="w-full text-left px-3 py-2 text-sm font-medium text-forest hover:bg-muted"
-                      >
-                        + New recipe…
-                      </button>
-                    )}
-
-                    {/* Grouped templates */}
-                    {groupedTemplates.map(({ label, recipes }) => (
-                      <div key={label}>
-                        <p className="px-3 pt-2 pb-1 text-[10px] font-semibold text-subtle uppercase tracking-widest">
-                          {label}
-                        </p>
-                        {recipes.map(r => (
-                          <button
-                            key={r.id}
-                            onClick={() => handleUseTemplate(r.id)}
-                            className="w-full text-left px-3 py-1.5 text-sm text-body hover:bg-muted"
-                          >
-                            {r.name}
-                          </button>
-                        ))}
-                      </div>
-                    ))}
-
-                    {groupedTemplates.length === 0 && (
-                      <p className="px-3 py-4 text-sm text-center text-subtle">
-                        {addRecipeSearch ? 'No templates match your search.' : 'No templates yet. Create one in the Templates library.'}
-                      </p>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )}
-          </div>
-
-          {/* ── Event Items ── */}
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Package className="w-4 h-4 text-[#A89880]" />
-                <h2 className="text-sm font-semibold text-[#4A3F35]">Event Items</h2>
-                <span className="text-xs text-[#A89880]">Hard goods, rentals &amp; misc not tied to a recipe</span>
-              </div>
-              {!addingItem && (
-                <Button size="sm" variant="outline" onClick={() => setAddingItem(true)}>
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Item
-                </Button>
-              )}
+            {/* COGS */}
+            <div className="flex flex-col px-5 py-3 min-w-0 flex-1">
+              <span className="text-[10px] font-semibold text-[#A89880] uppercase tracking-widest mb-1">COGS</span>
+              <span className="text-sm font-semibold font-mono text-[#4A3F35]">{formatCurrency(summary.totalCOGS)}</span>
+              <span className="text-[11px] text-[#A89880] mt-0.5">{formatPct(summary.cogsAsPctOfRetail)} of retail</span>
             </div>
 
-            {/* Existing event items */}
-            {items.length > 0 && (
-              <div className="space-y-1.5 mb-3">
-                {items.map(item => (
-                  <div key={item.id} className="bg-white rounded-lg border border-[#E8E0D8] px-4 py-2.5 flex items-center gap-3 group">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-[#4A3F35] truncate">{item.item_name}</span>
-                        <span className="text-xs text-[#A89880] shrink-0">{ITEM_TYPE_LABELS[item.item_type]}</span>
-                      </div>
-                      {showPricing && (
-                        <p className="text-xs text-[#A89880] mt-0.5 font-mono">
-                          {formatCurrency(Number(item.wholesale_cost_snapshot))} each
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleItemQtyChange(item.id, Math.max(1, Number(item.quantity) - 1))}
-                        className="w-6 h-6 rounded bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center text-xs">–</button>
-                      <span className="w-7 text-center text-sm font-medium">{Number(item.quantity)}×</span>
-                      <button
-                        onClick={() => handleItemQtyChange(item.id, Number(item.quantity) + 1)}
-                        className="w-6 h-6 rounded bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center text-xs">+</button>
-                    </div>
-                    <Button size="icon-sm" variant="ghost" onClick={() => handleRemoveItem(item.id)}>
-                      <Trash2 className="w-3.5 h-3.5 text-[#C0392B]" />
-                    </Button>
-                  </div>
-                ))}
+            {/* Labor */}
+            <div className="flex flex-col px-5 py-3 min-w-0 flex-1">
+              <span className="text-[10px] font-semibold text-[#A89880] uppercase tracking-widest mb-1">Labor</span>
+              <span className="text-sm font-semibold font-mono text-[#4A3F35]">{formatCurrency(summary.totalLabor)}</span>
+              <span className="text-[11px] text-[#A89880] mt-0.5">{formatPct(summary.laborAsPctOfRetail)} of retail</span>
+            </div>
+
+            {/* Stems */}
+            <div className="flex flex-col px-5 py-3 min-w-0 flex-1">
+              <span className="text-[10px] font-semibold text-[#A89880] uppercase tracking-widest mb-1">Stems</span>
+              <span className="text-sm font-semibold text-[#4A3F35]">{summary.totalStems}</span>
+            </div>
+
+            {/* Services */}
+            <div className="flex flex-col px-5 py-3 min-w-0 flex-1">
+              <span className="text-[10px] font-semibold text-[#A89880] uppercase tracking-widest mb-1">Services</span>
+              <span className="text-sm font-semibold font-mono text-[#4A3F35]">{formatCurrency(summary.servicesTotal)}</span>
+              <div className="flex gap-2 mt-1 flex-wrap">
+                <ServiceFeeEdit label="Del" value={eventSettings.deliveryFee} feeType={eventSettings.deliveryFeeType} computedAmount={summary.deliveryFee} onChange={v => updateEventSettings({ deliveryFee: v })} onTypeChange={t => updateEventSettings({ deliveryFeeType: t })} compact />
+                <ServiceFeeEdit label="Setup" value={eventSettings.setupFee} feeType={eventSettings.setupFeeType} computedAmount={summary.setupFee} onChange={v => updateEventSettings({ setupFee: v })} onTypeChange={t => updateEventSettings({ setupFeeType: t })} compact />
+                <ServiceFeeEdit label="T/D" value={eventSettings.teardownFee} feeType={eventSettings.teardownFeeType} computedAmount={summary.teardownFee} onChange={v => updateEventSettings({ teardownFee: v })} onTypeChange={t => updateEventSettings({ teardownFeeType: t })} compact />
               </div>
-            )}
+            </div>
 
-            {items.length === 0 && !addingItem && (
-              <p className="text-xs text-[#A89880] py-2">No event-level items yet.</p>
-            )}
+            {/* Tax */}
+            <div className="flex flex-col px-5 py-3 min-w-0 flex-1">
+              <span className="text-[10px] font-semibold text-[#A89880] uppercase tracking-widest mb-1">Tax</span>
+              <span className="text-sm font-semibold font-mono text-[#4A3F35]">{formatCurrency(summary.taxAmount)}</span>
+              <EventInlineEdit label="Rate" value={eventSettings.taxRate} suffix="%" onChange={v => updateEventSettings({ taxRate: v })} compact />
+            </div>
 
-            {/* Add item form */}
-            {addingItem && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-xl border border-[#E8E0D8] p-4 space-y-3"
-              >
-                {/* Type selector */}
-                <div className="flex gap-2">
-                  {(['hard_good', 'rental', 'misc'] as EventItemType[]).map(t => (
-                    <button
-                      key={t}
-                      onClick={() => { setAddItemType(t); setAddItemCatalogId('') }}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                        addItemType === t
-                          ? 'bg-[#2D5016] text-white'
-                          : 'bg-[#F5F1EC] text-[#4A3F35] hover:bg-[#E8E0D8]'
-                      }`}
-                    >
-                      {ITEM_TYPE_LABELS[t]}
-                    </button>
-                  ))}
-                </div>
+            {/* Total */}
+            <div className="flex flex-col px-5 py-3 min-w-0 flex-1 bg-[#F5F1EC]">
+              <span className="text-[10px] font-semibold text-[#A89880] uppercase tracking-widest mb-1">Total</span>
+              <span className="text-base font-bold font-mono text-[#2D5016]">{formatCurrency(summary.totalRetailPrice)}</span>
+              <span className="text-[11px] text-[#A89880] mt-0.5">{formatCurrency(summary.preTaxTotal)} pre-tax</span>
+            </div>
 
-                <div className="flex items-end gap-3">
-                  {/* Catalog picker or misc name+cost */}
-                  {addItemType === 'hard_good' && (
-                    <div className="flex-1">
-                      <Select value={addItemCatalogId} onValueChange={setAddItemCatalogId}>
-                        <SelectTrigger className="h-9 text-sm">
-                          <SelectValue placeholder="Select hard good…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {hardGoods.map(hg => (
-                            <SelectItem key={hg.id} value={hg.id}>
-                              {hg.name}
-                              {showPricing && <span className="text-[#A89880] ml-1">· {formatCurrency(hg.wholesale_cost)}</span>}
-                            </SelectItem>
-                          ))}
-                          {hardGoods.length === 0 && (
-                            <div className="px-2 py-1.5 text-xs text-[#A89880]">No hard goods in catalog</div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+            {/* Margin */}
+            <div className="flex flex-col px-5 py-3 min-w-0 flex-1">
+              <span className="text-[10px] font-semibold text-[#A89880] uppercase tracking-widest mb-1">Margin</span>
+              <MarginBadge marginPct={summary.blendedMarginPct} marginTarget={eventSettings.marginTarget} showValue />
+              <EventInlineEdit label="Target" value={eventSettings.marginTarget} suffix="%" onChange={v => updateEventSettings({ marginTarget: v })} compact />
+            </div>
 
-                  {addItemType === 'rental' && (
-                    <div className="flex-1">
-                      <Select value={addItemCatalogId} onValueChange={setAddItemCatalogId}>
-                        <SelectTrigger className="h-9 text-sm">
-                          <SelectValue placeholder="Select rental…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {rentals.map(r => {
-                            const costPerUse = r.acquisition_cost / Math.max(1, r.times_used)
-                            return (
-                              <SelectItem key={r.id} value={r.id}>
-                                {r.name}
-                                {showPricing && <span className="text-[#A89880] ml-1">· {formatCurrency(costPerUse)}/use</span>}
-                              </SelectItem>
-                            )
-                          })}
-                          {rentals.length === 0 && (
-                            <div className="px-2 py-1.5 text-xs text-[#A89880]">No rentals in catalog</div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {addItemType === 'misc' && (
-                    <>
-                      <div className="flex-1">
-                        <input
-                          autoFocus
-                          type="text"
-                          value={addItemMiscName}
-                          onChange={e => setAddItemMiscName(e.target.value)}
-                          placeholder="Item name…"
-                          className="w-full h-9 rounded-md border border-[#E8E0D8] bg-white px-3 text-sm text-[#4A3F35] placeholder:text-[#A89880] outline-none focus:ring-1 focus:ring-[#2D5016]"
-                        />
-                      </div>
-                      <div className="w-28">
-                        <div className="flex items-center border border-[#E8E0D8] rounded-md overflow-hidden bg-white h-9">
-                          <span className="px-2 text-xs text-[#A89880]">$</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={addItemMiscCost}
-                            onChange={e => setAddItemMiscCost(parseFloat(e.target.value) || 0)}
-                            placeholder="0.00"
-                            className="flex-1 text-sm text-[#4A3F35] bg-transparent outline-none pr-2 min-w-0"
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Quantity */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => setAddItemQty(q => Math.max(1, q - 1))}
-                      className="w-7 h-9 rounded-md bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center">–</button>
-                    <span className="w-7 text-center text-sm font-medium">{addItemQty}</span>
-                    <button
-                      onClick={() => setAddItemQty(q => q + 1)}
-                      className="w-7 h-9 rounded-md bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center">+</button>
-                  </div>
-
-                  <Button size="sm" onClick={handleAddItem} disabled={!canAddItem || addItemLoading}>
-                    Add
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={resetAddItemForm}>
-                    Cancel
-                  </Button>
-                </div>
-              </motion.div>
-            )}
           </div>
         </div>
+      )}
 
-        {/* Event summary panel */}
-        {showPricing && summary && (
-          <div>
-            <Card>
-              <CardHeader><CardTitle className="text-base">Event Summary</CardTitle></CardHeader>
-              <CardContent className="space-y-1 text-sm">
-                {/* Recipe totals */}
-                <div className="flex justify-between py-0.5">
-                  <span className="text-[#A89880]">Total COGS</span>
-                  <span className="font-mono">{formatCurrency(summary.totalCOGS)}</span>
-                </div>
-                <div className="flex justify-between py-0.5">
-                  <span className="text-[#A89880]">Total Labor</span>
-                  <span className="font-mono">{formatCurrency(summary.totalLabor)}</span>
-                </div>
-                <div className="flex justify-between py-0.5">
-                  <span className="text-[#A89880]">Total Stems</span>
-                  <span>{summary.totalStems}</span>
-                </div>
-                <div className="flex justify-between py-0.5 font-semibold">
-                  <span>Recipes Subtotal</span>
-                  <span className="font-mono">{formatCurrency(summary.recipesSubtotal)}</span>
-                </div>
-
-                {/* Event items subtotal */}
-                {summary.eventItemsSubtotal > 0 && (
-                  <div className="flex justify-between py-0.5 font-semibold">
-                    <span>Event Items</span>
-                    <span className="font-mono">{formatCurrency(summary.eventItemsSubtotal)}</span>
-                  </div>
-                )}
-
-                <Separator className="my-2" />
-
-                {/* Services */}
-                <p className="text-xs font-semibold text-[#A89880] uppercase tracking-wide pt-1">Services</p>
-                <ServiceFeeEdit
-                  label="Delivery"
-                  value={eventSettings.deliveryFee}
-                  feeType={eventSettings.deliveryFeeType}
-                  computedAmount={summary.deliveryFee}
-                  onChange={v => updateEventSettings({ deliveryFee: v })}
-                  onTypeChange={t => updateEventSettings({ deliveryFeeType: t })}
-                />
-                <ServiceFeeEdit
-                  label="Setup"
-                  value={eventSettings.setupFee}
-                  feeType={eventSettings.setupFeeType}
-                  computedAmount={summary.setupFee}
-                  onChange={v => updateEventSettings({ setupFee: v })}
-                  onTypeChange={t => updateEventSettings({ setupFeeType: t })}
-                />
-                <ServiceFeeEdit
-                  label="Teardown"
-                  value={eventSettings.teardownFee}
-                  feeType={eventSettings.teardownFeeType}
-                  computedAmount={summary.teardownFee}
-                  onChange={v => updateEventSettings({ teardownFee: v })}
-                  onTypeChange={t => updateEventSettings({ teardownFeeType: t })}
-                />
-                <div className="flex justify-between py-0.5 font-semibold">
-                  <span>Services Total</span>
-                  <span className="font-mono">{formatCurrency(summary.servicesTotal)}</span>
-                </div>
-
-                <Separator className="my-2" />
-
-                {/* Final */}
-                <p className="text-xs font-semibold text-[#A89880] uppercase tracking-wide pt-1">Final</p>
-                <div className="flex justify-between py-0.5">
-                  <span className="text-[#A89880]">Pre-tax Total</span>
-                  <span className="font-mono">{formatCurrency(summary.preTaxTotal)}</span>
-                </div>
-                <EventInlineEdit
-                  label="Tax rate"
-                  value={eventSettings.taxRate}
-                  suffix="%"
-                  onChange={v => updateEventSettings({ taxRate: v })}
-                />
-                <div className="flex justify-between py-0.5 text-[#A89880]">
-                  <span>Tax</span>
-                  <span className="font-mono">{formatCurrency(summary.taxAmount)}</span>
-                </div>
-                <div className="flex justify-between py-1 font-semibold border-t-2 border-[#E8E0D8] mt-1">
-                  <span>TOTAL RETAIL PRICE</span>
-                  <span className="font-mono">{formatCurrency(summary.totalRetailPrice)}</span>
-                </div>
-
-                <Separator className="my-2" />
-
-                {/* Profit Analysis */}
-                <p className="text-xs font-semibold text-[#A89880] uppercase tracking-wide pt-1">Profit Analysis</p>
-                <div className="flex justify-between py-0.5 text-[#A89880]">
-                  <span>COGS % of retail</span>
-                  <span className="font-mono">{formatPct(summary.cogsAsPctOfRetail)}</span>
-                </div>
-                <div className="flex justify-between py-0.5 text-[#A89880]">
-                  <span>Labor % of retail</span>
-                  <span className="font-mono">{formatPct(summary.laborAsPctOfRetail)}</span>
-                </div>
-                <div className="flex justify-between py-0.5">
-                  <span>Gross Profit</span>
-                  <span className="font-mono">{formatCurrency(summary.grossProfit)}</span>
-                </div>
-                <div className="flex items-center justify-between py-0.5">
-                  <span className="font-semibold">Gross Margin</span>
-                  <MarginBadge marginPct={summary.blendedMarginPct} marginTarget={eventSettings.marginTarget} showValue />
-                </div>
-                <EventInlineEdit
-                  label="Target margin"
-                  value={eventSettings.marginTarget}
-                  suffix="%"
-                  onChange={v => updateEventSettings({ marginTarget: v })}
-                />
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </div>
+      {/* ── Client Proposal (Quote) ─────────────────────────── */}
+      <EventQuoteSection
+        initialItems={quoteItems}
+        eventId={event.id}
+        taxRate={eventSettings.taxRate}
+        marginTarget={eventSettings.marginTarget}
+        canEdit={showPricing}
+      />
     </div>
   )
 }
 
 function EventInlineEdit({
-  label, value, suffix, onChange,
+  label, value, suffix, onChange, compact,
 }: {
   label: string
   value: number
   suffix: string
   onChange: (v: number) => void
+  compact?: boolean
 }) {
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1 mt-1">
+        <span className="text-[10px] text-[#A89880]">{label}:</span>
+        <input
+          type="number"
+          step="0.01"
+          value={value}
+          onChange={e => onChange(parseFloat(e.target.value) || 0)}
+          className="w-10 text-right text-[10px] font-mono text-[#4A3F35] bg-white border border-[#E8E0D8] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-[#2D5016]"
+        />
+        <span className="text-[10px] text-[#A89880]">{suffix}</span>
+      </div>
+    )
+  }
   return (
     <div className="flex items-center justify-between py-0.5">
       <span className="text-[#A89880]">{label}</span>
@@ -881,7 +518,7 @@ function EventInlineEdit({
 }
 
 function ServiceFeeEdit({
-  label, value, feeType, computedAmount, onChange, onTypeChange,
+  label, value, feeType, computedAmount, onChange, onTypeChange, compact,
 }: {
   label: string
   value: number
@@ -889,7 +526,26 @@ function ServiceFeeEdit({
   computedAmount: number
   onChange: (v: number) => void
   onTypeChange: (t: FeeType) => void
+  compact?: boolean
 }) {
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] text-[#A89880]">{label}:</span>
+        <div className="flex rounded border border-[#E8E0D8] overflow-hidden text-[10px] shrink-0">
+          <button type="button" onClick={() => onTypeChange('flat')} className={`px-1 py-0.5 font-medium transition-colors ${feeType === 'flat' ? 'bg-[#2D5016] text-white' : 'bg-white text-[#A89880]'}`}>$</button>
+          <button type="button" onClick={() => onTypeChange('percentage')} className={`px-1 py-0.5 font-medium transition-colors ${feeType === 'percentage' ? 'bg-[#2D5016] text-white' : 'bg-white text-[#A89880]'}`}>%</button>
+        </div>
+        <input
+          type="number"
+          step="0.01"
+          value={value}
+          onChange={e => onChange(parseFloat(e.target.value) || 0)}
+          className="w-10 text-right text-[10px] font-mono text-[#4A3F35] bg-white border border-[#E8E0D8] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-[#2D5016]"
+        />
+      </div>
+    )
+  }
   return (
     <div className="flex items-center justify-between py-0.5">
       <span className="text-[#A89880]">{label}</span>

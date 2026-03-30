@@ -10,7 +10,7 @@ export default async function EventDetailPage({ params }: Props) {
   const { studioId, role } = await getMember()
   const admin = createAdminClient()
 
-  const [{ data: event }, { data: allRecipes }, { data: settings }, { data: hardGoods }, { data: rentals }] = await Promise.all([
+  const [{ data: event }, { data: allRecipes }, { data: settings }, { data: hardGoods }, { data: rentals }, { data: quoteItems }] = await Promise.all([
     admin
       .from('events')
       .select('*, event_recipes(*, recipes(*, recipe_items(*))), event_items(*)')
@@ -21,6 +21,7 @@ export default async function EventDetailPage({ params }: Props) {
     admin.from('studio_settings').select('*').eq('studio_id', studioId).single(),
     admin.from('hard_goods').select('*').eq('studio_id', studioId).eq('is_active', true).order('name'),
     admin.from('rentals').select('*').eq('studio_id', studioId).eq('is_active', true).order('name'),
+    admin.from('event_quote_items').select('*, recipes(id, name)').eq('event_id', id).order('sort_order'),
   ])
 
   if (!event) notFound()
@@ -33,6 +34,7 @@ export default async function EventDetailPage({ params }: Props) {
       role={role}
       hardGoods={hardGoods ?? []}
       rentals={rentals ?? []}
+      quoteItems={(quoteItems ?? []) as Parameters<typeof EventDetail>[0]['quoteItems']}
     />
   )
 }

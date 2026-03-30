@@ -1,7 +1,7 @@
 'use server'
 import { getMemberOrThrow } from '@/lib/supabase/get-member'
 import { revalidatePath } from 'next/cache'
-import type { Recipe, RecipeItem } from '@/types/database'
+import type { Recipe, RecipeItem, EventItem } from '@/types/database'
 
 export async function duplicateTemplate(id: string): Promise<{ data?: Recipe; error?: string }> {
   try {
@@ -117,6 +117,239 @@ export async function createTemplate(): Promise<{ data?: Recipe; error?: string 
     if (error) return { error: error.message }
     revalidatePath('/templates')
     return { data: data as Recipe }
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+}
+
+// ─── Event Template Actions ────────────────────────────────────
+
+type EventWithRecipes = {
+  id: string
+  notes: string | null
+  delivery_fee: number | null
+  setup_fee: number | null
+  teardown_fee: number | null
+  delivery_fee_type: string | null
+  setup_fee_type: string | null
+  teardown_fee_type: string | null
+  tax_rate: number | null
+  margin_target: number | null
+  event_recipes: {
+    id: string
+    quantity: number
+    override_retail_price: number | null
+    sort_order: number
+    recipes: Recipe & { recipe_items: RecipeItem[] }
+  }[]
+  event_items: EventItem[]
+}
+
+async function duplicateEventRecipes(
+  supabase: Awaited<ReturnType<typeof getStudio>>['supabase'],
+  studioId: string,
+  sourceEventRecipes: EventWithRecipes['event_recipes'],
+  newEventId: string
+) {
+  for (const er of sourceEventRecipes) {
+    const { data: newRecipe } = await supabase
+      .from('recipes')
+      .insert({
+        studio_id: studioId,
+        name: er.recipes.name,
+        event_type: er.recipes.event_type,
+        description: er.recipes.description,
+        flower_markup: er.recipes.flower_markup,
+        hardgoods_markup: er.recipes.hardgoods_markup,
+        rental_markup: er.recipes.rental_markup,
+        labor_mode: er.recipes.labor_mode,
+        design_fee_pct: er.recipes.design_fee_pct,
+        prep_hours: er.recipes.prep_hours,
+        prep_rate: er.recipes.prep_rate,
+        design_hours: er.recipes.design_hours,
+        design_rate: er.recipes.design_rate,
+        pricing_mode: er.recipes.pricing_mode,
+        target_retail_price: er.recipes.target_retail_price,
+        status: 'draft',
+        is_template: false,
+        style_tags: er.recipes.style_tags ?? [],
+        share_token_active: false,
+        notes: er.recipes.notes,
+        moodboard_url: er.recipes.moodboard_url,
+        image_url: er.recipes.image_url,
+      })
+      .select()
+      .single()
+
+    if (!newRecipe) continue
+
+    if (er.recipes.recipe_items?.length) {
+      const items = (er.recipes.recipe_items as RecipeItem[]).map(
+        ({ id: _id, recipe_id: _rid, created_at: _ca, ...item }) => ({
+          ...item,
+          recipe_id: newRecipe.id,
+        })
+      )
+      await supabase.from('recipe_items').insert(items)
+    }
+
+    await supabase.from('event_recipes').insert({
+      event_id: newEventId,
+      recipe_id: newRecipe.id,
+      quantity: er.quantity,
+      override_retail_price: er.override_retail_price,
+      sort_order: er.sort_order,
+    })
+  }
+}
+
+export async function saveEventAsTemplate(
+  eventId: string,
+  templateName: string
+): Promise<{ data?: { id: string }; error?: string }> {
+  try {
+    const { supabase, studioId } = await getStudio()
+
+    const { data: source, error: fetchError } = await supabase
+      .from('events')
+      .select('*, event_recipes(id, quantity, override_retail_price, sort_order, recipes(*, recipe_items(*))), event_items(*)')
+      .eq('id', eventId)
+      .eq('studio_id', studioId)
+      .single()
+
+    if (fetchError || !source) return { error: fetchError?.message ?? 'Event not found' }
+
+    const { data: newEvent, error } = await supabase
+      .from('events')
+      .insert({
+        studio_id: studioId,
+        name: templateName,
+        is_template: true,
+        notes: source.notes,
+        delivery_fee: source.delivery_fee,
+        setup_fee: source.setup_fee,
+        teardown_fee: source.teardown_fee,
+        delivery_fee_type: source.delivery_fee_type as 'flat' | 'percentage' | null,
+        setup_fee_type: source.setup_fee_type as 'flat' | 'percentage' | null,
+        teardown_fee_type: source.teardown_fee_type as 'flat' | 'percentage' | null,
+        tax_rate: source.tax_rate,
+        margin_target: source.margin_target,
+        client_name: null,
+        event_date: null,
+        venue: null,
+      })
+      .select()
+      .single()
+
+    if (error || !newEvent) return { error: error?.message ?? 'Failed to create template' }
+
+    const sourceTyped = source as unknown as EventWithRecipes
+    await duplicateEventRecipes(supabase, studioId, sourceTyped.event_recipes, newEvent.id)
+
+    if (sourceTyped.event_items?.length) {
+      const eventItems = (sourceTyped.event_items as EventItem[]).map(
+        ({ id: _id, created_at: _ca, event_id: _eid, ...item }) => ({
+          ...item,
+          event_id: newEvent.id,
+        })
+      )
+      await supabase.from('event_items').insert(eventItems)
+    }
+
+    revalidatePath('/templates')
+    return { data: { id: newEvent.id } }
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+}
+
+export async function useEventTemplate(
+  templateEventId: string
+): Promise<{ data?: { id: string }; error?: string }> {
+  try {
+    const { supabase, studioId } = await getStudio()
+
+    const { data: template, error: fetchError } = await supabase
+      .from('events')
+      .select('*, event_recipes(id, quantity, override_retail_price, sort_order, recipes(*, recipe_items(*))), event_items(*)')
+      .eq('id', templateEventId)
+      .eq('studio_id', studioId)
+      .single()
+
+    if (fetchError || !template) return { error: fetchError?.message ?? 'Template not found' }
+
+    const { data: newEvent, error } = await supabase
+      .from('events')
+      .insert({
+        studio_id: studioId,
+        name: template.name ?? 'New Event',
+        is_template: false,
+        notes: template.notes,
+        delivery_fee: template.delivery_fee,
+        setup_fee: template.setup_fee,
+        teardown_fee: template.teardown_fee,
+        delivery_fee_type: template.delivery_fee_type as 'flat' | 'percentage' | null,
+        setup_fee_type: template.setup_fee_type as 'flat' | 'percentage' | null,
+        teardown_fee_type: template.teardown_fee_type as 'flat' | 'percentage' | null,
+        tax_rate: template.tax_rate,
+        margin_target: template.margin_target,
+        client_name: null,
+        event_date: null,
+        venue: null,
+      })
+      .select()
+      .single()
+
+    if (error || !newEvent) return { error: error?.message ?? 'Failed to create event' }
+
+    const templateTyped = template as unknown as EventWithRecipes
+    await duplicateEventRecipes(supabase, studioId, templateTyped.event_recipes, newEvent.id)
+
+    if (templateTyped.event_items?.length) {
+      const eventItems = (templateTyped.event_items as EventItem[]).map(
+        ({ id: _id, created_at: _ca, event_id: _eid, ...item }) => ({
+          ...item,
+          event_id: newEvent.id,
+        })
+      )
+      await supabase.from('event_items').insert(eventItems)
+    }
+
+    revalidatePath('/events')
+    return { data: { id: newEvent.id } }
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+}
+
+export async function deleteEventTemplate(id: string): Promise<{ error?: string }> {
+  try {
+    const { supabase, studioId } = await getStudio()
+
+    // Fetch recipe IDs linked to this template event
+    const { data: eventRecipes } = await supabase
+      .from('event_recipes')
+      .select('recipe_id')
+      .eq('event_id', id)
+
+    // Delete the template event (cascades event_recipes and event_items)
+    const { error } = await supabase
+      .from('events')
+      .delete()
+      .eq('id', id)
+      .eq('studio_id', studioId)
+      .eq('is_template', true)
+
+    if (error) return { error: error.message }
+
+    // Delete the copied recipes (and their recipe_items via cascade)
+    if (eventRecipes?.length) {
+      const recipeIds = eventRecipes.map(er => er.recipe_id)
+      await supabase.from('recipes').delete().in('id', recipeIds).eq('studio_id', studioId)
+    }
+
+    revalidatePath('/templates')
+    return {}
   } catch (e) {
     return { error: (e as Error).message }
   }

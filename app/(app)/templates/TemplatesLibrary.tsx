@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Filter, Check, BookOpen, Calendar, ChevronDown, X, ArrowRight, Pencil, Copy, Archive } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,8 @@ import { createTemplate, updateStyleTags, useTemplateForEvent, duplicateTemplate
 import { PaletteStrip } from '@/components/common/PaletteStrip'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
+import { EventTemplatesTab } from './EventTemplatesTab'
+import type { EventTemplateItem } from './EventTemplatesTab'
 
 // ─── Style Options ────────────────────────────────────────────
 
@@ -54,6 +56,8 @@ type EventOption = {
 interface TemplatesLibraryProps {
   initialTemplates: Template[]
   events: EventOption[]
+  initialEventTemplates: EventTemplateItem[]
+  eventTemplateQueryError: string | null
 }
 
 // ─── Style Tag ────────────────────────────────────────────────
@@ -81,7 +85,7 @@ function ItemTypePill({ value }: { value: string | null }) {
 
 // ─── Main Component ───────────────────────────────────────────
 
-export function TemplatesLibrary({ initialTemplates, events }: TemplatesLibraryProps) {
+export function TemplatesLibrary({ initialTemplates, events, initialEventTemplates, eventTemplateQueryError }: TemplatesLibraryProps) {
   const router = useRouter()
   const [templates, setTemplates] = useState<Template[]>(initialTemplates)
   const [search, setSearch] = useState('')
@@ -202,6 +206,11 @@ export function TemplatesLibrary({ initialTemplates, events }: TemplatesLibraryP
     setNewLoading(false)
   }
 
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState(() =>
+    searchParams.get('tab') === 'events' ? 'events' : 'recipes'
+  )
+
   return (
     <div>
       {/* Header */}
@@ -210,23 +219,24 @@ export function TemplatesLibrary({ initialTemplates, events }: TemplatesLibraryP
           <h1 className="font-serif text-3xl font-semibold text-[#2D5016]">Templates</h1>
           <p className="text-sm text-[#A89880] mt-1">Reusable designs for your studio</p>
         </div>
-        <Button onClick={handleNewTemplate} disabled={newLoading}>
-          <Plus className="w-4 h-4 mr-1.5" />
-          New Template
-        </Button>
+        {activeTab === 'recipes' && (
+          <Button onClick={handleNewTemplate} disabled={newLoading}>
+            <Plus className="w-4 h-4 mr-1.5" />
+            New Template
+          </Button>
+        )}
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="recipes">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
           <TabsTrigger value="recipes" className="flex items-center gap-2">
             <BookOpen className="w-3.5 h-3.5" />
             Recipe Templates
           </TabsTrigger>
-          <TabsTrigger value="events" disabled className="flex items-center gap-2 opacity-50">
+          <TabsTrigger value="events" className="flex items-center gap-2">
             <Calendar className="w-3.5 h-3.5" />
             Event Templates
-            <span className="text-[10px] bg-[#E8E0D8] text-[#A89880] rounded px-1.5 py-0.5 font-normal">Soon</span>
           </TabsTrigger>
         </TabsList>
 
@@ -476,6 +486,10 @@ export function TemplatesLibrary({ initialTemplates, events }: TemplatesLibraryP
               </table>
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="events">
+          <EventTemplatesTab initialEventTemplates={initialEventTemplates} queryError={eventTemplateQueryError} />
         </TabsContent>
       </Tabs>
 
