@@ -468,8 +468,6 @@ export function EventDetail({
       <EventQuoteSection
         initialItems={quoteItems}
         eventId={event.id}
-        taxRate={eventSettings.taxRate}
-        marginTarget={eventSettings.marginTarget}
         canEdit={showPricing}
       />
     </div>
