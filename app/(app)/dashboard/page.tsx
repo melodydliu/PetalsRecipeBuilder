@@ -2,10 +2,10 @@ import { getMember } from '@/lib/supabase/get-member'
 import { createAdminClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
 import { PaletteStrip } from '@/components/common/PaletteStrip'
-import { Plus, BookOpen, Calendar, Flower, ShoppingCart } from 'lucide-react'
+import { ClickableRow } from '@/components/common/ClickableRow'
+import { Plus, BookOpen, Calendar, Flower, ShoppingCart, ArrowRight } from 'lucide-react'
 
 export const metadata = { title: 'Dashboard — Petal' }
 
@@ -21,35 +21,21 @@ export default async function DashboardPage() {
     { count: catalogItems },
     { data: upcomingEvents },
     { data: recentRecipes },
-    { data: studio },
   ] = await Promise.all([
     admin.from('recipes').select('*', { count: 'exact', head: true }).eq('studio_id', studioId).eq('status', 'active'),
     admin.from('events').select('*', { count: 'exact', head: true }).eq('studio_id', studioId).gte('event_date', today.toISOString().split('T')[0]).lte('event_date', thirtyDaysOut.toISOString().split('T')[0]),
     admin.from('flowers').select('*', { count: 'exact', head: true }).eq('studio_id', studioId).eq('is_active', true),
     admin.from('events').select('*').eq('studio_id', studioId).gte('event_date', today.toISOString().split('T')[0]).order('event_date').limit(5),
     admin.from('recipes').select('*, recipe_items(item_color_hex, item_color_name, item_type)').eq('studio_id', studioId).neq('status', 'archived').order('updated_at', { ascending: false }).limit(5),
-    admin.from('studios').select('name').eq('id', studioId).single(),
   ])
-
-  const studioName = studio?.name ?? 'My Studio'
-
-  const EVENT_STATUS_LABELS: Record<string, string> = {
-    to_do: 'To Do', in_progress: 'In Progress', ordered: 'Ordered', complete: 'Complete',
-  }
-  const EVENT_STATUS_VARIANTS: Record<string, string> = {
-    to_do: 'draft', in_progress: 'blush', ordered: 'gold', complete: 'green',
-  }
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="font-serif text-2xl font-semibold text-forest">Good morning</h1>
-          <p className="text-xs text-subtle mt-0.5">{studioName}</p>
-        </div>
+        <h1 className="font-serif text-2xl font-semibold text-forest">Good morning</h1>
         <Link href="/recipes/new">
-          <Button size="sm">
-            <Plus className="w-3.5 h-3.5 mr-1.5" /> New
+          <Button size="sm" className="cursor-pointer gap-1">
+            <Plus className="w-3.5 h-3.5" /> New
           </Button>
         </Link>
       </div>
@@ -63,7 +49,7 @@ export default async function DashboardPage() {
           { label: 'Orders', value: null, icon: ShoppingCart, href: '/orders' },
         ].map(({ label, value, icon: Icon, href, sub }) => (
           <Link key={href} href={href} className="h-full block">
-            <Card className="hover:shadow-sm transition-shadow cursor-pointer group h-full p-4 flex items-start justify-between">
+            <Card className="cursor-pointer group h-full p-4 flex items-start justify-between">
               <div>
                 <p className="text-[11px] font-medium text-subtle uppercase tracking-wide">{label}</p>
                 {value !== null ? (
@@ -81,72 +67,73 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-12">
         {/* Upcoming events */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
-            <CardTitle className="text-sm font-semibold">Upcoming Events</CardTitle>
-            <Link href="/events">
-              <Button variant="ghost" size="sm" className="text-xs h-7 px-2">View all</Button>
-            </Link>
-          </CardHeader>
-          <CardContent className="px-4 pb-3 pt-0">
-            {upcomingEvents?.length === 0 ? (
-              <div className="py-6 text-center text-xs text-subtle">No events in the next 30 days</div>
-            ) : (
-              <div>
+        <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold">Upcoming Events</span>
+          <Link href="/events" className="group flex items-center gap-1 text-xs text-subtle hover:text-body hover:bg-muted transition-colors px-2 py-1 rounded-md">View all <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" /></Link>
+        </div>
+        <Card className="overflow-hidden">
+          {upcomingEvents?.length === 0 ? (
+            <div className="py-8 text-center text-xs text-subtle">No events in the next 30 days</div>
+          ) : (
+            <table className="w-full table-fixed">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-4 py-2 text-left text-[12px] font-semibold text-body">Event</th>
+                  <th className="px-4 py-2 text-left text-[12px] font-semibold text-body">Client</th>
+                  <th className="px-4 py-2 text-left text-[12px] font-semibold text-body">Date</th>
+                </tr>
+              </thead>
+              <tbody>
                 {upcomingEvents?.map(event => (
-                  <Link key={event.id} href={`/events/${event.id}`} className="flex items-center justify-between py-1.5 border-b border-border last:border-0 hover:text-forest group">
-                    <div>
-                      <p className="text-sm font-medium text-body group-hover:text-forest leading-snug">{event.name}</p>
-                      <p className="text-[11px] text-subtle">
-                        {event.client_name && `${event.client_name} · `}
-                        {event.event_date && new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </p>
-                    </div>
-                    <Badge variant={(EVENT_STATUS_VARIANTS[event.recipe_status] ?? 'draft') as Parameters<typeof Badge>[0]['variant']}>
-                      {EVENT_STATUS_LABELS[event.recipe_status]}
-                    </Badge>
-                  </Link>
+                  <ClickableRow key={event.id} href={`/events/${event.id}`} className="hover:bg-muted">
+                    <td className="px-4 py-2 font-medium text-body">{event.name}</td>
+                    <td className="px-4 py-2 text-subtle">{event.client_name ?? '—'}</td>
+                    <td className="px-4 py-2 text-subtle whitespace-nowrap">{event.event_date ? new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
+                  </ClickableRow>
                 ))}
-              </div>
-            )}
-          </CardContent>
+              </tbody>
+            </table>
+          )}
         </Card>
+        </div>
 
         {/* Recent recipes */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
-            <CardTitle className="text-sm font-semibold">Recent Recipes</CardTitle>
-            <Link href="/recipes">
-              <Button variant="ghost" size="sm" className="text-xs h-7 px-2">View all</Button>
-            </Link>
-          </CardHeader>
-          <CardContent className="px-4 pb-3 pt-0">
-            {recentRecipes?.length === 0 ? (
-              <div className="py-6 text-center text-xs text-subtle">No recipes yet</div>
-            ) : (
-              <div>
+        <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold">Recent Recipes</span>
+          <Link href="/recipes" className="group flex items-center gap-1 text-xs text-subtle hover:text-body hover:bg-muted transition-colors px-2 py-1 rounded-md">View all <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" /></Link>
+        </div>
+        <Card className="overflow-hidden">
+          {recentRecipes?.length === 0 ? (
+            <div className="py-8 text-center text-xs text-subtle">No recipes yet</div>
+          ) : (
+            <table className="w-full table-fixed">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-4 py-2 text-left text-[12px] font-semibold text-body">Recipe</th>
+                  <th className="px-4 py-2 text-left text-[12px] font-semibold text-body">Palette</th>
+                </tr>
+              </thead>
+              <tbody>
                 {recentRecipes?.map(recipe => {
                   const paletteColors = (recipe.recipe_items as Array<{ item_color_hex: string | null; item_color_name: string | null; item_type: string }>)
                     .filter(i => i.item_type === 'flower')
                     .map(i => ({ hex: i.item_color_hex, name: i.item_color_name }))
                   return (
-                    <Link key={recipe.id} href={`/recipes/${recipe.id}`} className="flex items-center justify-between py-1.5 border-b border-border last:border-0 hover:text-forest group">
-                      <div className="flex items-center gap-2.5">
-                        <PaletteStrip colors={paletteColors} maxColors={5} size="xs" />
-                        <p className="text-sm font-medium text-body group-hover:text-forest">{recipe.name}</p>
-                      </div>
-                      <Badge variant={recipe.status === 'active' ? 'active' : 'draft'} className="capitalize text-xs">
-                        {recipe.status}
-                      </Badge>
-                    </Link>
+                    <ClickableRow key={recipe.id} href={`/recipes/${recipe.id}`} className="hover:bg-muted">
+                      <td className="px-4 py-2 font-medium text-body">{recipe.name}</td>
+                      <td className="px-4 py-2"><PaletteStrip colors={paletteColors} maxColors={5} size="xs" /></td>
+                    </ClickableRow>
                   )
                 })}
-              </div>
-            )}
-          </CardContent>
+              </tbody>
+            </table>
+          )}
         </Card>
+        </div>
       </div>
     </div>
   )

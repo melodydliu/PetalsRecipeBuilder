@@ -6,7 +6,7 @@ import { SidebarShell } from '@/components/layout/SidebarShell'
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   if (process.env.DEV_BYPASS_AUTH === 'true') {
     return (
-      <div className="bg-[#FAF7F2]">
+      <div className="bg-[#F6F7F8]">
         <SidebarShell studioName="Dev Studio" userEmail="dev@example.com">
           {children}
         </SidebarShell>
@@ -32,7 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const studioName = (member.studios as { name: string } | null)?.name ?? 'My Studio'
 
   return (
-    <div className="bg-[#FAF7F2]">
+    <div className="bg-[#F6F7F8]">
       <SidebarShell studioName={studioName} userEmail={user.email}>
         {children}
       </SidebarShell>

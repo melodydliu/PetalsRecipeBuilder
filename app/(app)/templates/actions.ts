@@ -138,6 +138,46 @@ export async function updateStyleTags(recipeId: string, styles: string[]): Promi
   }
 }
 
+export async function saveEventAsTemplate(
+  _eventId: string,
+  name: string
+): Promise<{ data?: Recipe; error?: string }> {
+  try {
+    const { supabase, studioId } = await getStudio()
+
+    const { data: settings } = await supabase
+      .from('studio_settings')
+      .select('*')
+      .eq('studio_id', studioId)
+      .single()
+
+    const { data, error } = await supabase
+      .from('recipes')
+      .insert({
+        studio_id: studioId,
+        name,
+        status: 'draft',
+        is_template: true,
+        pricing_mode: 'work_back',
+        flower_markup: settings?.default_flower_markup,
+        hardgoods_markup: settings?.default_hardgoods_markup,
+        rental_markup: settings?.default_rental_markup,
+        labor_mode: settings?.default_labor_mode,
+        design_fee_pct: settings?.default_design_fee_pct,
+        prep_rate: settings?.default_prep_rate,
+        design_rate: settings?.default_design_rate,
+      })
+      .select()
+      .single()
+
+    if (error) return { error: error.message }
+    revalidatePath('/templates')
+    return { data: data as Recipe }
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+}
+
 export async function useTemplateForEvent(
   templateId: string,
   eventId: string

@@ -158,13 +158,81 @@ Colors are defined as CSS variables in `globals.css` under `@theme inline` and a
 | `body` | `#4A3F35` | Body text |
 | `subtle` | `#A89880` | Muted/secondary text |
 | `border` | `#E8E0D8` | Borders, dividers |
-| `muted` | `#F5F1EC` | Table headers, surfaces |
+| `muted` | `#F7F8F8` | Row hover background |
 
 Use `text-forest`, `bg-cream`, `border-border`, etc. **Prefer theme tokens over arbitrary hex values.**
 
 > **Note:** Much of the existing codebase uses hardcoded hex values like `text-[#2D5016]`. These are being migrated to tokens as pages are rewritten — don't add new hardcoded hex values, and clean up any you touch during a rewrite.
 
-Fonts: Poppins for everything — \`font-sans\` and \`font-serif\` both resolve to Poppins. Playfair Display has been removed.
+Fonts: Poppins for everything — `font-sans` and `font-serif` both resolve to Poppins. Playfair Display has been removed.
+
+---
+
+## UI Patterns
+
+The design direction is clean, minimal, and editorial — inspired by Notion and Stripe. No shadows, no decorative borders, tight spacing.
+
+### Cards
+
+- Base: `<Card>` — `rounded-xl bg-white border border-border`, **no shadow**
+- Never add `shadow-*` to cards or any other element
+- For cards containing a flush table: add `overflow-hidden` to the card
+
+### Buttons
+
+- Standard size: `size="sm"`
+- Always add `cursor-pointer` explicitly
+- Icon + label gap: `gap-1`
+- Example: `<Button size="sm" className="cursor-pointer gap-1"><Icon className="w-3.5 h-3.5" /> Label</Button>`
+
+### Data Tables
+
+Use a native `<table>` element. Pattern:
+
+```tsx
+<table className="w-full table-fixed">
+  <thead>
+    <tr className="border-b border-border">
+      <th className="px-4 py-2 text-left text-[12px] font-semibold text-body">Column</th>
+    </tr>
+  </thead>
+  <tbody>
+    <ClickableRow href="/path" className="hover:bg-muted">
+      <td className="px-4 py-2 font-medium text-body">Primary value</td>
+      <td className="px-4 py-2 text-subtle">Secondary value</td>
+    </ClickableRow>
+  </tbody>
+</table>
+```
+
+Key rules:
+- `table-fixed` — equal column widths regardless of content, scales automatically as columns are added
+- Header: `text-[12px] font-semibold text-body`, `border-b border-border` on the `<tr>`
+- Rows: `text-[14px]` (set in `ClickableRow`), `hover:bg-muted`, no row dividers
+- Primary cell: `font-medium text-body`
+- Secondary cells: `text-subtle`
+- Clickable rows: use `<ClickableRow href="...">` from `components/common/ClickableRow.tsx` — do not use duplicate `<Link>` tags per cell
+
+### Page Headers
+
+```tsx
+<div className="mb-6 flex items-center justify-between">
+  <h1 className="font-serif text-2xl font-semibold text-forest">Page title</h1>
+  <Button size="sm" className="cursor-pointer gap-1">...</Button>
+</div>
+```
+
+### Table Cards (header + table combo)
+
+```tsx
+<Card className="overflow-hidden">
+  <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+    <span className="text-sm font-semibold">Section Title</span>
+    <Link href="/path"><Button variant="ghost" size="sm" className="text-xs h-7 px-2">View all</Button></Link>
+  </div>
+  <table className="w-full table-fixed">...</table>
+</Card>
+```
 
 ---
 

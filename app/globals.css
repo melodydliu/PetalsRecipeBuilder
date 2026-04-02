@@ -13,7 +13,7 @@
   --color-danger: #C0392B;
   --color-warning: #E67E22;
   --color-success: #27AE60;
-  --color-muted: #F5F1EC;
+  --color-muted: #F7F8F8;
   --color-border: #E8E0D8;
   --color-subtle: #A89880;
   --color-body: #4A3F35;
@@ -52,7 +52,7 @@
   --primary-foreground: 0 0% 98%;
   --secondary: 36 30% 94%;
   --secondary-foreground: 25 20% 24%;
-  --muted: 36 25% 94%;
+  --muted: 180 5% 97%;
   --muted-foreground: 30 15% 50%;
   --accent: 10 60% 75%;
   --accent-foreground: 25 20% 24%;
