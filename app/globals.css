@@ -23,8 +23,8 @@
   --color-foreground: #4A3F35;
 
   /* Fonts */
-  --font-sans: var(--font-inter);
-  --font-serif: var(--font-playfair);
+  --font-sans: var(--font-poppins);
+  --font-serif: var(--font-poppins);
 
   /* Animations */
   --animate-fade-up: fade-up 200ms ease-out;
@@ -61,7 +61,7 @@
   --border: 30 25% 87%;
   --input: 30 25% 87%;
   --ring: 96 52% 20%;
-  --radius: 0.75rem;
+  --radius: 0.5rem;
 }
 
 * { box-sizing: border-box; }
@@ -74,11 +74,11 @@ html {
 body {
   background-color: #FAF7F2;
   color: #4A3F35;
-  font-family: var(--font-inter), system-ui, sans-serif;
+  font-family: var(--font-poppins), system-ui, sans-serif;
 }
 
 h1, h2 {
-  font-family: var(--font-playfair), Georgia, serif;
+  font-family: var(--font-poppins), system-ui, sans-serif;
 }
 
 /* Scrollbar */

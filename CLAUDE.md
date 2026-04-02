@@ -164,7 +164,7 @@ Use `text-forest`, `bg-cream`, `border-border`, etc. **Prefer theme tokens over 
 
 > **Note:** Much of the existing codebase uses hardcoded hex values like `text-[#2D5016]`. These are being migrated to tokens as pages are rewritten — don't add new hardcoded hex values, and clean up any you touch during a rewrite.
 
-Fonts: `font-serif` (Playfair Display, headings) · `font-sans` (Inter, body)
+Fonts: Poppins for everything — \`font-sans\` and \`font-serif\` both resolve to Poppins. Playfair Display has been removed.
 
 ---
 
@@ -239,3 +239,4 @@ Full schema with RLS: `supabase/migrations/001_initial.sql`
 - Don't use the autosave debounce (`updateLocal`) for deliberate one-click actions — call `updateRecipe` directly for toggles and explicit saves
 - Don't use `window.location.reload()` to refresh data — use `router.refresh()` from `next/navigation`, which re-runs the Server Component tree without a full page reload
 - Don't add new hardcoded hex values (e.g. `text-[#2D5016]`) — use design token classes (`text-forest`, etc.)
+- Don't add wrapper divs that only exist to pass props or apply a single CSS property — if a ShadCN component like `CardContent` is only adding padding that you're immediately overriding, put the padding directly on the parent and skip the wrapper. Always ask: does this element do anything the parent couldn't do with one extra class?

@@ -1,18 +1,15 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { Sidebar } from '@/components/layout/Sidebar'
+import { SidebarShell } from '@/components/layout/SidebarShell'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   if (process.env.DEV_BYPASS_AUTH === 'true') {
     return (
-      <div className="flex h-screen overflow-hidden bg-[#FAF7F2]">
-        <Sidebar studioName="Dev Studio" userEmail="dev@example.com" />
-        <main className="flex-1 overflow-y-auto" style={{ marginLeft: 240 }}>
-          <div className="max-w-[1280px] mx-auto px-8 py-8">
-            {children}
-          </div>
-        </main>
+      <div className="bg-[#FAF7F2]">
+        <SidebarShell studioName="Dev Studio" userEmail="dev@example.com">
+          {children}
+        </SidebarShell>
       </div>
     )
   }
@@ -22,7 +19,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/auth/login')
 
-  // Use admin client to bypass RLS for server-side member lookup
   const admin = createAdminClient()
   const { data: member } = await admin
     .from('studio_members')
@@ -36,13 +32,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const studioName = (member.studios as { name: string } | null)?.name ?? 'My Studio'
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#FAF7F2]">
-      <Sidebar studioName={studioName} userEmail={user.email} />
-      <main className="flex-1 overflow-y-auto" style={{ marginLeft: 240 }}>
-        <div className="max-w-[1280px] mx-auto px-8 py-8">
-          {children}
-        </div>
-      </main>
+    <div className="bg-[#FAF7F2]">
+      <SidebarShell studioName={studioName} userEmail={user.email}>
+        {children}
+      </SidebarShell>
     </div>
   )
 }
