@@ -68,6 +68,19 @@ app/
 
 ---
 
+## Local Development
+
+Copy `.env.local` and fill in the Supabase values. To skip the auth/onboarding flow entirely during local dev, set:
+
+```
+DEV_BYPASS_AUTH=true
+DEV_STUDIO_ID=<your-studio-uuid>
+```
+
+This is checked in three places: `proxy.ts` (skips the auth redirect), `app/(app)/layout.tsx` (renders a stub shell), and `get-member.ts` (returns a fake owner member). **All three must check the flag** — if you add a new auth gate, add the bypass there too.
+
+---
+
 ## Critical Next.js 16 Differences
 
 - `middleware.ts` → **`proxy.ts`**, export `proxy()` not `middleware()`
@@ -126,6 +139,10 @@ async function requireOwner() {
 **Read-only queries** (Server Components / layouts): use `getMember()` — redirects on failure.
 **Mutations** (Server Actions): use `getMemberOrThrow()` — throws on failure.
 
+Both functions are wrapped in React's `cache()` — calling them from both `layout.tsx` and `page.tsx` within the same request costs only one Supabase round-trip. Don't add a separate auth lookup to avoid "double fetching" — just call `getMember()` wherever you need it.
+
+> **Watch:** When real auth is wired up, verify that navigating to any page still loads correctly. If it redirects to `/auth/onboarding` unexpectedly, the `get_my_studio_id()` and `get_my_role()` SQL functions may not exist in the Supabase project yet — recreate them via the SQL editor using the definitions in `supabase/migrations/001_initial.sql` (search for `create or replace function`).
+
 ---
 
 ## Design System
@@ -144,6 +161,8 @@ Colors are defined as CSS variables in `globals.css` under `@theme inline` and a
 | `muted` | `#F5F1EC` | Table headers, surfaces |
 
 Use `text-forest`, `bg-cream`, `border-border`, etc. **Prefer theme tokens over arbitrary hex values.**
+
+> **Note:** Much of the existing codebase uses hardcoded hex values like `text-[#2D5016]`. These are being migrated to tokens as pages are rewritten — don't add new hardcoded hex values, and clean up any you touch during a rewrite.
 
 Fonts: `font-serif` (Playfair Display, headings) · `font-sans` (Inter, body)
 
@@ -218,3 +237,5 @@ Full schema with RLS: `supabase/migrations/001_initial.sql`
 - Don't expose `SUPABASE_SERVICE_ROLE_KEY` to the client — admin client is server-only
 - Don't use `useState` for DOM side effects (`window`, `document`) — use `useEffect`; `useState` initializers run on the server during SSR even in `'use client'` components
 - Don't use the autosave debounce (`updateLocal`) for deliberate one-click actions — call `updateRecipe` directly for toggles and explicit saves
+- Don't use `window.location.reload()` to refresh data — use `router.refresh()` from `next/navigation`, which re-runs the Server Component tree without a full page reload
+- Don't add new hardcoded hex values (e.g. `text-[#2D5016]`) — use design token classes (`text-forest`, etc.)

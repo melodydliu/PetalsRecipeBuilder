@@ -1,13 +1,14 @@
+import { cache } from 'react'
 import { createClient } from './server'
 import { createAdminClient } from './admin'
 import { redirect } from 'next/navigation'
 import type { UserRole } from '@/types/database'
 
 /**
- * Gets the authenticated user + their studio membership using the admin client
- * to bypass Supabase's role permission issues on self-hosted/new projects.
+ * Gets the authenticated user + their studio membership.
+ * Uses the user-scoped client — RLS policies in 001_initial.sql enforce access.
  */
-export async function getMember(): Promise<{ userId: string; studioId: string; role: UserRole }> {
+export const getMember = cache(async function getMember(): Promise<{ userId: string; studioId: string; role: UserRole }> {
   if (process.env.DEV_BYPASS_AUTH === 'true') {
     return {
       userId: 'dev-user',
@@ -20,8 +21,7 @@ export async function getMember(): Promise<{ userId: string; studioId: string; r
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const admin = createAdminClient()
-  const { data: member } = await admin
+  const { data: member } = await supabase
     .from('studio_members')
     .select('studio_id, role')
     .eq('user_id', user.id)
@@ -30,12 +30,13 @@ export async function getMember(): Promise<{ userId: string; studioId: string; r
 
   if (!member) redirect('/auth/onboarding')
   return { userId: user.id, studioId: member.studio_id, role: member.role }
-}
+})
 
 /**
  * Same as getMember but throws instead of redirecting (for use in Server Actions).
+ * Returns the admin client for mutations — RLS is still enforced on reads via the user client.
  */
-export async function getMemberOrThrow(): Promise<{ userId: string; studioId: string; role: UserRole; admin: ReturnType<typeof createAdminClient> }> {
+export const getMemberOrThrow = cache(async function getMemberOrThrow(): Promise<{ userId: string; studioId: string; role: UserRole; admin: ReturnType<typeof createAdminClient> }> {
   if (process.env.DEV_BYPASS_AUTH === 'true') {
     return {
       userId: 'dev-user',
@@ -49,8 +50,7 @@ export async function getMemberOrThrow(): Promise<{ userId: string; studioId: st
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  const admin = createAdminClient()
-  const { data: member } = await admin
+  const { data: member } = await supabase
     .from('studio_members')
     .select('studio_id, role')
     .eq('user_id', user.id)
@@ -58,5 +58,5 @@ export async function getMemberOrThrow(): Promise<{ userId: string; studioId: st
     .single()
 
   if (!member) throw new Error('Not a studio member')
-  return { userId: user.id, studioId: member.studio_id, role: member.role, admin }
-}
+  return { userId: user.id, studioId: member.studio_id, role: member.role, admin: createAdminClient() }
+})

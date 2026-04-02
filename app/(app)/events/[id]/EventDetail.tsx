@@ -121,7 +121,7 @@ export function EventDetail({
     setLoading(true)
     const { error } = await useTemplateForEvent(templateId, event.id)
     if (!error) {
-      window.location.reload()
+      router.refresh()
     }
     setLoading(false)
   }

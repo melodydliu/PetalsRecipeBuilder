@@ -46,9 +46,16 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="font-serif text-3xl font-semibold text-[#2D5016]">Good morning</h1>
-        <p className="text-sm text-[#A89880] mt-1">{studioName}</p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="font-serif text-3xl font-semibold text-[#2D5016]">Good morning</h1>
+          <p className="text-sm text-[#A89880] mt-1">{studioName}</p>
+        </div>
+        <Link href="/recipes/new">
+          <Button>
+            <Plus className="w-4 h-4 mr-2" /> New
+          </Button>
+        </Link>
       </div>
 
       {/* Summary cards */}
@@ -82,7 +89,7 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="flex flex-col gap-6">
         {/* Upcoming events */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -150,24 +157,6 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* Quick actions */}
-      <div className="mt-6 flex items-center gap-3">
-        <Link href="/recipes/new">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" /> New Recipe
-          </Button>
-        </Link>
-        <Link href="/events">
-          <Button variant="outline">
-            <Calendar className="w-4 h-4 mr-2" /> New Event
-          </Button>
-        </Link>
-        <Link href="/orders">
-          <Button variant="outline">
-            <ShoppingCart className="w-4 h-4 mr-2" /> Generate Order
-          </Button>
-        </Link>
-      </div>
     </div>
   )
 }
