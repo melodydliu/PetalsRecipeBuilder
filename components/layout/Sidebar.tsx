@@ -19,13 +19,13 @@ const navItems = [
 ]
 
 interface SidebarProps {
-  studioName?: string
+  // studioName?: string
   userEmail?: string
   collapsed: boolean
   onCollapsedChange: (collapsed: boolean) => void
 }
 
-export function Sidebar({ studioName = 'My Studio', userEmail, collapsed, onCollapsedChange }: SidebarProps) {
+export function Sidebar({ userEmail, collapsed, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -56,7 +56,6 @@ export function Sidebar({ studioName = 'My Studio', userEmail, collapsed, onColl
               className="flex-1 overflow-hidden"
             >
               <p className="font-semibold text-[#2D5016] text-base leading-tight whitespace-nowrap">Petal</p>
-              <p className="text-xs text-[#A89880] truncate max-w-[140px]">{studioName}</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -81,9 +80,9 @@ export function Sidebar({ studioName = 'My Studio', userEmail, collapsed, onColl
               key={href}
               href={href}
               className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-1.5 text-sm font-medium transition-colors group',
+                'flex items-center gap-3 rounded-md px-3 py-1.5 text-[14px] font-base transition-colors group',
                 active
-                  ? 'bg-[#2D5016]/10 text-[#2D5016]'
+                  ? 'bg-[#2D5016]/5 text-[#2D5016] font-semibold'
                   : 'text-[#A89880] hover:bg-[#F5F1EC] hover:text-[#4A3F35]'
               )}
             >
