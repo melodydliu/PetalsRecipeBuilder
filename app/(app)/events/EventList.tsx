@@ -2,13 +2,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Calendar, Trash2, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { createEvent, cycleEventStatus, deleteEvent } from './actions'
+import { createEvent, cycleEventStatus, deleteEvent, duplicateEvent } from './actions'
 import type { Event, EventStatus } from '@/types/database'
 
 type EventWithCount = Event & { event_recipes: { recipe_id: string }[] }
@@ -19,14 +20,12 @@ const STATUS_LABELS: Record<EventStatus, string> = {
 const STATUS_VARIANTS: Record<EventStatus, Parameters<typeof Badge>[0]['variant']> = {
   to_do: 'draft', in_progress: 'blush', ordered: 'gold', complete: 'green',
 }
-const STATUS_NEXT: Record<EventStatus, string> = {
-  to_do: 'Start →', in_progress: 'Mark Ordered →', ordered: 'Complete →', complete: 'Reset →',
-}
 
 export function EventList({ initialEvents, role }: { initialEvents: EventWithCount[]; role: string }) {
   const router = useRouter()
   const [events, setEvents] = useState(initialEvents)
   const [showCreate, setShowCreate] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', client_name: '', event_date: '', venue: '' })
   const [loading, setLoading] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -53,43 +52,46 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
   }
 
   const handleCycleStatus = async (id: string, currentStatus: EventStatus) => {
-    // Optimistic
     const cycle: EventStatus[] = ['to_do', 'in_progress', 'ordered', 'complete']
     const nextStatus = cycle[(cycle.indexOf(currentStatus) + 1) % cycle.length]
     setEvents(prev => prev.map(e => e.id === id ? { ...e, recipe_status: nextStatus } : e))
     await cycleEventStatus(id, currentStatus)
   }
 
-  const handleDelete = async (id: string) => {
-    setEvents(prev => prev.filter(e => e.id !== id))
-    await deleteEvent(id)
+  const handleDelete = async () => {
+    if (!confirmDeleteId) return
+    setEvents(prev => prev.filter(e => e.id !== confirmDeleteId))
+    setConfirmDeleteId(null)
+    await deleteEvent(confirmDeleteId)
+  }
+
+  const handleDuplicate = async (id: string) => {
+    const { data } = await duplicateEvent(id)
+    if (data) setEvents(prev => [{ ...data, event_recipes: [] } as EventWithCount, ...prev])
   }
 
   const set = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }))
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-[#2D5016]">Events</h1>
-          <p className="text-sm text-[#A89880] mt-1">{events.length} event{events.length !== 1 ? 's' : ''}</p>
-        </div>
-        <Button onClick={() => setShowCreate(true)}>
-          <Plus className="w-4 h-4 mr-1.5" /> New Event
+      <div className="mb-3 flex items-center justify-between">
+        <h1 className="font-serif text-2xl font-semibold text-forest">Events</h1>
+        <Button size="sm" className="cursor-pointer gap-1" onClick={() => setShowCreate(true)}>
+          <Plus className="w-3.5 h-3.5" /> New Event
         </Button>
       </div>
 
-      <div className="bg-white rounded-xl border border-[#E8E0D8] overflow-hidden">
-        <table className="w-full">
+      <Card className="overflow-hidden">
+        <table className="w-full table-fixed">
           <thead>
-            <tr className="border-b border-[#E8E0D8] bg-[#F5F1EC]">
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[#A89880] uppercase tracking-wide">Event</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[#A89880] uppercase tracking-wide">Client</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[#A89880] uppercase tracking-wide">Date</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[#A89880] uppercase tracking-wide">Venue</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-[#A89880] uppercase tracking-wide">Recipes</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[#A89880] uppercase tracking-wide">Status</th>
-              <th className="px-4 py-3"></th>
+            <tr className="border-b border-border">
+              <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Event</th>
+              <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Client</th>
+              <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Date</th>
+              <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Venue</th>
+              <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Recipes</th>
+              <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Status</th>
+              <th className="px-4 py-1" />
             </tr>
           </thead>
           <tbody>
@@ -102,40 +104,34 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
                   exit={{ opacity: 0 }}
                   transition={{ delay: i * 0.02 }}
                   onClick={() => router.push(`/events/${event.id}`)}
-                  className="border-b border-[#E8E0D8] last:border-0 hover:bg-[#FAF7F2] cursor-pointer group"
+                  className="text-[14px] border-b border-row-border last:border-0 hover:bg-muted cursor-pointer group"
                 >
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-sm text-[#4A3F35]">{event.name}</p>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-[#A89880]">{event.client_name || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-[#A89880]">
+                  <td className="px-4 py-1 font-medium text-body truncate max-w-0">{event.name}</td>
+                  <td className="px-4 py-1 text-subtle">{event.client_name || '—'}</td>
+                  <td className="px-4 py-1 text-subtle">
                     {event.event_date
                       ? new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                       : '—'}
                   </td>
-                  <td className="px-4 py-3 text-sm text-[#A89880]">{event.venue || '—'}</td>
-                  <td className="px-4 py-3 text-center text-sm text-[#A89880]">
-                    {event.event_recipes?.length ?? 0}
-                  </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-1 text-subtle">{event.venue || '—'}</td>
+                  <td className="px-4 py-1 text-subtle">{event.event_recipes?.length ?? 0}</td>
+                  <td className="px-4 py-1">
                     <button
                       onClick={e => { e.stopPropagation(); handleCycleStatus(event.id, event.recipe_status) }}
-                      className="flex items-center gap-1 group/status"
                     >
                       <Badge variant={STATUS_VARIANTS[event.recipe_status]}>
                         {STATUS_LABELS[event.recipe_status]}
                       </Badge>
-                      <span className="text-xs text-[#A89880] opacity-0 group-hover/status:opacity-100 transition-opacity ml-1">
-                        {STATUS_NEXT[event.recipe_status]}
-                      </span>
                     </button>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ChevronRight className="w-4 h-4 text-[#A89880]" />
-                      <Button size="icon-sm" variant="ghost" onClick={e => { e.stopPropagation(); handleDelete(event.id) }}>
-                        <Trash2 className="w-3.5 h-3.5 text-[#C0392B]" />
-                      </Button>
+                  <td className="px-4 py-1 text-right">
+                    <div className="inline-flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => handleDuplicate(event.id)} className="px-2 py-1 border border-border hover:border-body hover:bg-muted cursor-pointer transition-colors rounded-md">
+                        <Copy className="w-3.5 h-3.5 text-subtle" />
+                      </button>
+                      <button onClick={() => setConfirmDeleteId(event.id)} className="px-2 py-1 border border-border hover:border-body hover:bg-muted cursor-pointer transition-colors rounded-md">
+                        <Trash2 className="w-3.5 h-3.5 text-danger" />
+                      </button>
                     </div>
                   </td>
                 </motion.tr>
@@ -146,15 +142,26 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
 
         {events.length === 0 && (
           <div className="py-16 text-center">
-            <p className="text-3xl mb-3">📅</p>
-            <p className="font-medium text-[#4A3F35] mb-1">No events yet</p>
-            <p className="text-sm text-[#A89880] mb-4">Events group your recipes and track order status</p>
-            <Button onClick={() => setShowCreate(true)}>
-              <Plus className="w-4 h-4 mr-2" /> Create first event
+            <p className="font-medium text-body mb-1">No events yet</p>
+            <p className="text-sm text-subtle mb-4">Events group your recipes and track order status</p>
+            <Button size="sm" className="cursor-pointer gap-1" onClick={() => setShowCreate(true)}>
+              <Plus className="w-3.5 h-3.5" /> Create first event
             </Button>
           </div>
         )}
-      </div>
+      </Card>
+      <p className="text-xs text-subtle mt-3">{events.length} event{events.length !== 1 ? 's' : ''} total</p>
+
+      <Dialog open={!!confirmDeleteId} onOpenChange={v => { if (!v) setConfirmDeleteId(null) }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete event?</DialogTitle></DialogHeader>
+          <p className="text-sm text-subtle">This will permanently delete the event and cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showCreate} onOpenChange={v => { setShowCreate(v); if (!v) setCreateError(null) }}>
         <DialogContent>
@@ -179,7 +186,7 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
               </div>
             </div>
             {createError && (
-              <p className="text-sm text-red-600 bg-red-50 rounded-md px-3 py-2">{createError}</p>
+              <p className="text-sm text-danger bg-red-50 rounded-md px-3 py-2">{createError}</p>
             )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>

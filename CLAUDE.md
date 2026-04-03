@@ -159,6 +159,7 @@ Colors are defined as CSS variables in `globals.css` under `@theme inline` and a
 | `subtle` | `#A89880` | Muted/secondary text |
 | `border` | `#E8E0D8` | Borders, dividers |
 | `muted` | `#F7F8F8` | Row hover background |
+| `row-border` | `#E8EDF2` | Table row bottom border |
 
 Use `text-forest`, `bg-cream`, `border-border`, etc. **Prefer theme tokens over arbitrary hex values.**
 
@@ -208,7 +209,7 @@ Use a native `<table>` element. Pattern:
 Key rules:
 - `table-fixed` — equal column widths regardless of content, scales automatically as columns are added
 - Header: `text-[12px] font-semibold text-body`, `border-b border-border` on the `<tr>`
-- Rows: `text-[14px]` (set in `ClickableRow`), `hover:bg-muted`, no row dividers
+- Rows: `text-[14px]` (set in `ClickableRow`), `border-b border-row-border last:border-0`, `hover:bg-muted`
 - Primary cell: `font-medium text-body`
 - Secondary cells: `text-subtle`
 - Clickable rows: use `<ClickableRow href="...">` from `components/common/ClickableRow.tsx` — do not use duplicate `<Link>` tags per cell

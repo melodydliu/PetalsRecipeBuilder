@@ -24,6 +24,32 @@ export async function createEvent(input: Partial<Event>): Promise<{ data?: Event
   }
 }
 
+export async function duplicateEvent(id: string): Promise<{ data?: Event; error?: string }> {
+  try {
+    const { supabase, studioId } = await getStudioId()
+    const { data: original } = await supabase.from('events').select('*').eq('id', id).eq('studio_id', studioId).single()
+    if (!original) return { error: 'Event not found' }
+    const { data, error } = await supabase
+      .from('events')
+      .insert({
+        studio_id: studioId,
+        name: `${original.name} (Copy)`,
+        client_name: original.client_name,
+        event_date: original.event_date,
+        venue: original.venue,
+        event_type: original.event_type,
+        recipe_status: 'to_do',
+      } as Database['public']['Tables']['events']['Insert'])
+      .select()
+      .single()
+    if (error) return { error: error.message }
+    revalidatePath('/events')
+    return { data: data as Event }
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+}
+
 export async function updateEvent(id: string, input: Partial<Event>): Promise<{ error?: string }> {
   try {
     const { supabase, studioId } = await getStudioId()
