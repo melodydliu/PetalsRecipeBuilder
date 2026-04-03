@@ -1,17 +1,21 @@
 'use client'
 import { useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Trash2, CalendarDays, ShoppingCart, ExternalLink, BookmarkPlus, Check, Flower, Flower2, Leaf, Sprout, Sparkles, Heart, Droplets } from 'lucide-react'
+import { Trash2, CalendarDays, ShoppingCart, BookmarkPlus, Check, Flower as FlowerIcon, Flower2, Leaf, Sprout, Sparkles, Heart, Droplets, MoreVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { removeRecipeFromEvent, updateEventRecipe, updateEvent } from '../actions'
+import { addRecipeToEvent, removeRecipeFromEvent, updateEventRecipe, updateEvent } from '../actions'
 import { saveEventAsTemplate } from '@/app/(app)/templates/actions'
+import { createRecipe } from '../../recipes/actions'
 import { calculatePricingWaterfall, calculateEventSummary, formatCurrency, formatPct } from '@/lib/pricing/engine'
 import type { EventPricingSettings } from '@/lib/pricing/engine'
 import { MarginBadge } from '@/components/common/MarginBadge'
@@ -32,8 +36,46 @@ export function EventDetail({
   settings: StudioSettings | null
   role: string
 }) {
+  const router = useRouter()
   const [event, setEvent] = useState(initialEvent)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Event confirmed state
+  const [eventConfirmed, setEventConfirmed] = useState(false)
+
+  // Delete confirmation
+  const [confirmDeleteErid, setConfirmDeleteErid] = useState<string | null>(null)
+
+  // Build quote modal
+  const [addRecipeOpen, setAddRecipeOpen] = useState(false)
+  const [itemName, setItemName] = useState('')
+  const [itemQty, setItemQty] = useState(1)
+  const [itemPrice, setItemPrice] = useState<number | ''>('')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  const itemTotal = itemQty * (typeof itemPrice === 'number' ? itemPrice : 0)
+
+  const handleOpenBuildQuote = () => {
+    setItemName('')
+    setItemQty(1)
+    setItemPrice('')
+    setCreateError(null)
+    setAddRecipeOpen(true)
+  }
+
+  const handleCreateQuoteItem = async () => {
+    const name = itemName.trim()
+    if (!name) return
+    setCreating(true)
+    setCreateError(null)
+    const { data: recipe, error: recipeError } = await createRecipe({ name })
+    if (recipeError || !recipe) { setCreating(false); setCreateError(recipeError ?? 'Failed to create item'); return }
+    const price = typeof itemPrice === 'number' ? itemPrice : null
+    await addRecipeToEvent(event.id, recipe.id, itemQty, price)
+    setAddRecipeOpen(false)
+    router.refresh()
+  }
 
   const showPricing = role !== 'staff'
 
@@ -153,7 +195,7 @@ export function EventDetail({
   return (
     <div>
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-2">
         <div>
           <Breadcrumb>
             <BreadcrumbList>
@@ -176,16 +218,127 @@ export function EventDetail({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="cursor-pointer gap-1" onClick={openTemplateDialog}>
-            <BookmarkPlus className="w-3.5 h-3.5" /> Save as Template
+          <Button
+            variant="outline"
+            size="sm"
+            className="cursor-pointer gap-1"
+            onClick={() => setEventConfirmed(c => !c)}
+          >
+            {eventConfirmed ? 'Mark as Not Confirmed' : 'Mark as Confirmed'}
           </Button>
-          <Link href={`/orders?event=${event.id}`}>
-            <Button variant="outline" size="sm" className="cursor-pointer gap-1">
-              <ShoppingCart className="w-3.5 h-3.5" /> Generate Order
-            </Button>
-          </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="cursor-pointer w-8 px-0">
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem asChild className="cursor-pointer gap-2">
+                <Link href={`/orders?event=${event.id}`}>
+                  <ShoppingCart className="w-3.5 h-3.5" /> Generate Order
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer gap-2" onClick={openTemplateDialog}>
+                <BookmarkPlus className="w-3.5 h-3.5" /> Save as Template
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
+
+      {/* ─── Delete Item Confirmation ───────────────────────────── */}
+      <Dialog open={!!confirmDeleteErid} onOpenChange={v => { if (!v) setConfirmDeleteErid(null) }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Remove item?</DialogTitle></DialogHeader>
+          <p className="text-sm text-subtle">This will remove the item from your quote and cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteErid(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => { handleRemoveRecipe(confirmDeleteErid!); setConfirmDeleteErid(null) }}>Remove</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Build Quote Modal ──────────────────────────────────── */}
+      <Dialog open={addRecipeOpen} onOpenChange={open => { if (!open) setAddRecipeOpen(false) }}>
+        <DialogContent className="sm:max-w-[440px] p-0">
+          {/* Header band */}
+          <div className="bg-forest/5 px-6 pt-6 pb-5 rounded-t-xl">
+            <div className="flex items-center gap-2.5 mb-0.5">
+              <Flower2 className="w-4 h-4 text-forest" />
+              <DialogTitle className="text-base font-semibold text-body">Build Quote</DialogTitle>
+            </div>
+            <p className="text-sm text-subtle pl-[26px]">Add an item, set the quantity and price to build your event quote.</p>
+          </div>
+
+          <div className="px-6 py-5 space-y-5">
+            {/* Item name */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-body uppercase tracking-wide">Item</Label>
+              <Input
+                autoFocus
+                placeholder="e.g. Bridal Bouquet"
+                value={itemName}
+                onChange={e => setItemName(e.target.value)}
+                className="h-9"
+              />
+            </div>
+
+            {/* Quantity + Price */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-body uppercase tracking-wide">Quantity</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={itemQty}
+                  onChange={e => setItemQty(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-body uppercase tracking-wide">Price</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle text-sm pointer-events-none">$</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    placeholder="0.00"
+                    value={itemPrice}
+                    onChange={e => setItemPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                    className="h-9 pl-6"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Total */}
+            <div className="flex items-center justify-between py-2 px-3 rounded-md bg-muted border border-border">
+              <span className="text-xs font-semibold text-body uppercase tracking-wide">Total</span>
+              <span className="text-sm font-semibold text-body font-mono">{formatCurrency(itemTotal)}</span>
+            </div>
+
+            {createError && (
+              <p className="text-sm text-danger bg-red-50 rounded-md px-3 py-2">{createError}</p>
+            )}
+          </div>
+
+          <div className="px-6 pb-5 flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => setAddRecipeOpen(false)} disabled={creating}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="cursor-pointer gap-1 bg-forest text-cream hover:bg-forest/90"
+              onClick={handleCreateQuoteItem}
+              disabled={!itemName.trim() || creating}
+            >
+              <Flower2 className="w-3.5 h-3.5" />
+              {creating ? 'Creating…' : 'Add to Quote'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ─── Save as Template Dialog ────────────────────────────── */}
       <Dialog open={templateDialogOpen} onOpenChange={open => { if (!open) setTemplateDialogOpen(false) }}>
@@ -273,7 +426,7 @@ export function EventDetail({
                 </div>
                 {/* Left — Flower (blush) */}
                 <div className="absolute top-1/2 -translate-y-1/2 left-0 w-9 h-9 rounded-full bg-white border border-blush/40 flex items-center justify-center">
-                  <Flower className="w-4 h-4 text-blush" />
+                  <FlowerIcon className="w-4 h-4 text-blush" />
                 </div>
                 {/* Top-right — Heart (blush) */}
                 <div className="absolute top-5 right-4 w-8 h-8 rounded-full bg-white border border-blush/40 flex items-center justify-center">
@@ -288,8 +441,8 @@ export function EventDetail({
               <p className="text-sm text-subtle text-center max-w-[260px] mb-6">
                 Add your first recipe to start building this event's floral design.
               </p>
-              <Button size="sm" className="cursor-pointer gap-1 bg-forest text-cream hover:bg-forest/90">
-                <Flower2 className="w-3.5 h-3.5" /> Add Recipe
+              <Button size="sm" className="cursor-pointer gap-1 bg-forest text-cream hover:bg-forest/90" onClick={handleOpenBuildQuote}>
+                <Flower2 className="w-3.5 h-3.5" /> Build Quote
               </Button>
             </div>
           )}
@@ -320,35 +473,36 @@ export function EventDetail({
               }
             ) : null
 
+            const price = er.override_retail_price ?? 0
+            const total = price * er.quantity
+
             return (
-              <div key={er.id} className="bg-white rounded-xl border border-[#E8E0D8] px-5 py-4 flex items-center gap-4 group">
+              <div key={er.id} className="bg-white rounded-xl border border-[#E8E0D8] px-5 py-4 flex items-center gap-3 group">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Link href={`/recipes/${recipe.id}?from=${event.id}`} className="font-medium text-[#4A3F35] hover:text-[#2D5016] flex items-center gap-1">
-                      {recipe.name}
-                      <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </Link>
-                    {showPricing && wf && (
-                      <MarginBadge marginPct={wf.grossMarginPct} marginTarget={eventSettings.marginTarget} size="sm" />
-                    )}
-                  </div>
-                  {showPricing && wf && (
-                    <p className="text-sm text-[#A89880] mt-0.5">
-                      {formatCurrency(wf.recipeSubtotal)} each · {formatCurrency(wf.recipeSubtotal * er.quantity)} total
-                    </p>
+                  <span className="font-medium text-[#4A3F35]">{recipe.name}</span>
+                  {showPricing && (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <button
+                        onClick={() => handleQtyChange(er.id, Math.max(1, er.quantity - 1))}
+                        className="w-5 h-5 rounded bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center text-xs cursor-pointer leading-none"
+                      >–</button>
+                      <span className="text-xs font-semibold text-body w-4 text-center tabular-nums">{er.quantity}</span>
+                      <button
+                        onClick={() => handleQtyChange(er.id, er.quantity + 1)}
+                        className="w-5 h-5 rounded bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center text-xs cursor-pointer leading-none"
+                      >+</button>
+                      <span className="text-xs text-subtle ml-0.5">× {formatCurrency(price)} = <span className="font-medium text-body">{formatCurrency(total)}</span></span>
+                    </div>
                   )}
                 </div>
 
-                {/* Quantity */}
-                <div className="flex items-center gap-1">
-                  <button onClick={() => handleQtyChange(er.id, Math.max(1, er.quantity - 1))}
-                    className="w-7 h-7 rounded-md bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center">–</button>
-                  <span className="w-8 text-center text-sm font-medium">{er.quantity}×</span>
-                  <button onClick={() => handleQtyChange(er.id, er.quantity + 1)}
-                    className="w-7 h-7 rounded-md bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center">+</button>
-                </div>
+                {eventConfirmed && (
+                  <Button size="sm" variant="outline" className="cursor-pointer shrink-0 text-xs h-7 px-2.5">
+                    Create Recipe
+                  </Button>
+                )}
 
-                <Button size="icon-sm" variant="ghost" onClick={() => handleRemoveRecipe(er.id)}>
+                <Button size="icon-sm" variant="ghost" className="cursor-pointer" onClick={() => setConfirmDeleteErid(er.id)}>
                   <Trash2 className="w-3.5 h-3.5 text-[#C0392B]" />
                 </Button>
               </div>
@@ -361,7 +515,14 @@ export function EventDetail({
         {showPricing && summary && (
           <div>
             <Card>
-              <CardHeader><CardTitle className="text-base">Event Summary</CardTitle></CardHeader>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base">Event Summary</CardTitle>
+                  <Badge variant={eventConfirmed ? 'green' : 'draft'}>
+                    {eventConfirmed ? 'Event confirmed' : 'Event not confirmed'}
+                  </Badge>
+                </div>
+              </CardHeader>
               <CardContent className="space-y-1 text-sm">
                 {/* Recipe totals */}
                 <div className="flex justify-between py-0.5">

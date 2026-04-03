@@ -37,7 +37,6 @@ export async function duplicateEvent(id: string): Promise<{ data?: Event; error?
         client_name: original.client_name,
         event_date: original.event_date,
         venue: original.venue,
-        event_type: original.event_type,
         recipe_status: 'to_do',
       } as Database['public']['Tables']['events']['Insert'])
       .select()
@@ -82,12 +81,12 @@ export async function cycleEventStatus(id: string, currentStatus: EventStatus): 
   return { newStatus, ...result }
 }
 
-export async function addRecipeToEvent(eventId: string, recipeId: string, quantity = 1): Promise<{ error?: string }> {
+export async function addRecipeToEvent(eventId: string, recipeId: string, quantity = 1, overrideRetailPrice?: number | null): Promise<{ error?: string }> {
   try {
     const { supabase } = await getStudioId()
     const { error } = await supabase
       .from('event_recipes')
-      .insert({ event_id: eventId, recipe_id: recipeId, quantity })
+      .insert({ event_id: eventId, recipe_id: recipeId, quantity, override_retail_price: overrideRetailPrice ?? null })
     if (error) return { error: error.message }
     revalidatePath(`/events/${eventId}`)
     return {}

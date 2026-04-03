@@ -19,7 +19,7 @@ const navItems = [
 ]
 
 interface SidebarProps {
-  // studioName?: string
+  studioName?: string
   userEmail?: string
   collapsed: boolean
   onCollapsedChange: (collapsed: boolean) => void
