@@ -6,20 +6,12 @@ import { Plus, Trash2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { createEvent, cycleEventStatus, deleteEvent, duplicateEvent } from './actions'
-import type { Event, EventStatus } from '@/types/database'
+import { createEvent, deleteEvent, duplicateEvent } from './actions'
+import type { Event } from '@/types/database'
 
 type EventWithCount = Event & { event_recipes: { recipe_id: string }[] }
-
-const STATUS_LABELS: Record<EventStatus, string> = {
-  to_do: 'To Do', in_progress: 'In Progress', ordered: 'Ordered', complete: 'Complete',
-}
-const STATUS_VARIANTS: Record<EventStatus, Parameters<typeof Badge>[0]['variant']> = {
-  to_do: 'draft', in_progress: 'blush', ordered: 'gold', complete: 'green',
-}
 
 export function EventList({ initialEvents, role }: { initialEvents: EventWithCount[]; role: string }) {
   const router = useRouter()
@@ -51,13 +43,6 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
     setLoading(false)
   }
 
-  const handleCycleStatus = async (id: string, currentStatus: EventStatus) => {
-    const cycle: EventStatus[] = ['to_do', 'in_progress', 'ordered', 'complete']
-    const nextStatus = cycle[(cycle.indexOf(currentStatus) + 1) % cycle.length]
-    setEvents(prev => prev.map(e => e.id === id ? { ...e, recipe_status: nextStatus } : e))
-    await cycleEventStatus(id, currentStatus)
-  }
-
   const handleDelete = async () => {
     if (!confirmDeleteId) return
     setEvents(prev => prev.filter(e => e.id !== confirmDeleteId))
@@ -85,12 +70,10 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
         <table className="w-full table-fixed">
           <thead>
             <tr className="border-b border-border">
-              <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Event</th>
               <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Client</th>
               <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Date</th>
               <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Venue</th>
               <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Recipes</th>
-              <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Status</th>
               <th className="px-4 py-1" />
             </tr>
           </thead>
@@ -106,8 +89,7 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
                   onClick={() => router.push(`/events/${event.id}`)}
                   className="text-[14px] border-b border-row-border last:border-0 hover:bg-muted cursor-pointer group"
                 >
-                  <td className="px-4 py-1 font-medium text-body truncate max-w-0">{event.name}</td>
-                  <td className="px-4 py-1 text-subtle">{event.client_name || '—'}</td>
+                  <td className="px-4 py-1 font-medium text-body truncate max-w-0">{event.client_name || '—'}</td>
                   <td className="px-4 py-1 text-subtle">
                     {event.event_date
                       ? new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -115,15 +97,6 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
                   </td>
                   <td className="px-4 py-1 text-subtle">{event.venue || '—'}</td>
                   <td className="px-4 py-1 text-subtle">{event.event_recipes?.length ?? 0}</td>
-                  <td className="px-4 py-1">
-                    <button
-                      onClick={e => { e.stopPropagation(); handleCycleStatus(event.id, event.recipe_status) }}
-                    >
-                      <Badge variant={STATUS_VARIANTS[event.recipe_status]}>
-                        {STATUS_LABELS[event.recipe_status]}
-                      </Badge>
-                    </button>
-                  </td>
                   <td className="px-4 py-1 text-right">
                     <div className="inline-flex items-center gap-1" onClick={e => e.stopPropagation()}>
                       <button onClick={() => handleDuplicate(event.id)} className="px-2 py-1 border border-border hover:border-body hover:bg-muted cursor-pointer transition-colors rounded-md">
