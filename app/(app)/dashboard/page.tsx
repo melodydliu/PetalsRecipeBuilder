@@ -81,7 +81,6 @@ export default async function DashboardPage() {
             <table className="w-full table-fixed">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Event</th>
                   <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Client</th>
                   <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Date</th>
                   <th className="px-4 py-1 text-left text-[12px] font-semibold text-body">Venue</th>
@@ -90,8 +89,7 @@ export default async function DashboardPage() {
               <tbody>
                 {upcomingEvents?.map(event => (
                   <ClickableRow key={event.id} href={`/events/${event.id}`} className="hover:bg-muted">
-                    <td className="px-4 py-1 font-medium text-body truncate max-w-0">{event.name}</td>
-                    <td className="px-4 py-1 text-subtle">{event.client_name ?? '—'}</td>
+                    <td className="px-4 py-1 font-medium text-body truncate max-w-0">{event.client_name ?? '—'}</td>
                     <td className="px-4 py-1 text-subtle whitespace-nowrap">{event.event_date ? new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
                     <td className="px-4 py-1 text-subtle">{event.venue ?? '—'}</td>
                   </ClickableRow>

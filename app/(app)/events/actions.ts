@@ -33,7 +33,7 @@ export async function duplicateEvent(id: string): Promise<{ data?: Event; error?
       .from('events')
       .insert({
         studio_id: studioId,
-        name: `${original.name} (Copy)`,
+        name: original.client_name ?? '',
         client_name: original.client_name,
         event_date: original.event_date,
         venue: original.venue,

@@ -10,17 +10,14 @@ export default async function EventDetailPage({ params }: Props) {
   const { studioId, role } = await getMember()
   const admin = createAdminClient()
 
-  const [{ data: event }, { data: allRecipes }, { data: settings }, { data: hardGoods }, { data: rentals }] = await Promise.all([
+  const [{ data: event }, { data: settings }] = await Promise.all([
     admin
       .from('events')
       .select('*, event_recipes(*, recipes(*, recipe_items(*))), event_items(*)')
       .eq('id', id)
       .eq('studio_id', studioId)
       .single(),
-    admin.from('recipes').select('id, name, event_type, status').eq('studio_id', studioId).eq('is_template', true).neq('status', 'archived').order('name'),
     admin.from('studio_settings').select('*').eq('studio_id', studioId).single(),
-    admin.from('hard_goods').select('*').eq('studio_id', studioId).eq('is_active', true).order('name'),
-    admin.from('rentals').select('*').eq('studio_id', studioId).eq('is_active', true).order('name'),
   ])
 
   if (!event) notFound()
@@ -28,11 +25,8 @@ export default async function EventDetailPage({ params }: Props) {
   return (
     <EventDetail
       event={event as Parameters<typeof EventDetail>[0]['event']}
-      allRecipes={allRecipes ?? []}
       settings={settings}
       role={role}
-      hardGoods={hardGoods ?? []}
-      rentals={rentals ?? []}
     />
   )
 }

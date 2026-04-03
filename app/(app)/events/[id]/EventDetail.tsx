@@ -1,26 +1,21 @@
 'use client'
-import { useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Plus, Trash2, ChevronLeft, ShoppingCart, ExternalLink, Package, BookmarkPlus, Check, Search, ChevronDown } from 'lucide-react'
+import { Trash2, CalendarDays, ShoppingCart, ExternalLink, BookmarkPlus, Check, Flower, Flower2, Leaf, Sprout, Sparkles, Heart, Droplets } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { cycleEventStatus, addRecipeToEvent, removeRecipeFromEvent, updateEventRecipe, updateEvent, addEventItem, removeEventItem, updateEventItemQuantity } from '../actions'
-import { createRecipe } from '../../recipes/actions'
-import { saveEventAsTemplate, useTemplateForEvent } from '@/app/(app)/templates/actions'
-import { EVENT_TYPE_OPTIONS } from '@/lib/constants'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { removeRecipeFromEvent, updateEventRecipe, updateEvent } from '../actions'
+import { saveEventAsTemplate } from '@/app/(app)/templates/actions'
 import { calculatePricingWaterfall, calculateEventSummary, formatCurrency, formatPct } from '@/lib/pricing/engine'
-import type { EventPricingSettings, EventItemEntry } from '@/lib/pricing/engine'
+import type { EventPricingSettings } from '@/lib/pricing/engine'
 import { MarginBadge } from '@/components/common/MarginBadge'
-import type { Event, EventStatus, Recipe, RecipeItem, StudioSettings, EventItem, HardGood, Rental, EventItemType, FeeType } from '@/types/database'
+import type { Event, Recipe, RecipeItem, StudioSettings, EventItem, FeeType } from '@/types/database'
 
 type EventRecipeRow = {
   id: string; quantity: number; override_retail_price: number | null; sort_order: number
@@ -28,50 +23,17 @@ type EventRecipeRow = {
 }
 type EventFull = Event & { event_recipes: EventRecipeRow[]; event_items: EventItem[] }
 
-const STATUS_LABELS: Record<EventStatus, string> = {
-  to_do: 'To Do', in_progress: 'In Progress', ordered: 'Ordered', complete: 'Complete',
-}
-const STATUS_VARIANTS: Record<EventStatus, Parameters<typeof Badge>[0]['variant']> = {
-  to_do: 'draft', in_progress: 'blush', ordered: 'gold', complete: 'green',
-}
-
-const ITEM_TYPE_LABELS: Record<EventItemType, string> = {
-  hard_good: 'Hard Good', rental: 'Rental', misc: 'Misc',
-}
-
 export function EventDetail({
   event: initialEvent,
-  allRecipes,
   settings,
   role,
-  hardGoods,
-  rentals,
 }: {
   event: EventFull
-  allRecipes: Pick<Recipe, 'id' | 'name' | 'event_type' | 'status'>[]
   settings: StudioSettings | null
   role: string
-  hardGoods: HardGood[]
-  rentals: Rental[]
 }) {
-  const router = useRouter()
   const [event, setEvent] = useState(initialEvent)
-  const [selectedRecipeId, setSelectedRecipeId] = useState('')
-  const [newRecipeName, setNewRecipeName] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [addRecipeOpen, setAddRecipeOpen] = useState(false)
-  const [addRecipeSearch, setAddRecipeSearch] = useState('')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Event items state
-  const [items, setItems] = useState<EventItem[]>(initialEvent.event_items)
-  const [addingItem, setAddingItem] = useState(false)
-  const [addItemType, setAddItemType] = useState<EventItemType>('hard_good')
-  const [addItemCatalogId, setAddItemCatalogId] = useState('')
-  const [addItemMiscName, setAddItemMiscName] = useState('')
-  const [addItemMiscCost, setAddItemMiscCost] = useState(0)
-  const [addItemQty, setAddItemQty] = useState(1)
-  const [addItemLoading, setAddItemLoading] = useState(false)
 
   const showPricing = role !== 'staff'
 
@@ -108,37 +70,6 @@ export function EventDetail({
     scheduleEventSettingsSave(updates)
   }, [scheduleEventSettingsSave])
 
-  const handleCycleStatus = async () => {
-    const cycle: EventStatus[] = ['to_do', 'in_progress', 'ordered', 'complete']
-    const next = cycle[(cycle.indexOf(event.recipe_status) + 1) % cycle.length]
-    setEvent(e => ({ ...e, recipe_status: next }))
-    await cycleEventStatus(event.id, event.recipe_status)
-  }
-
-  const handleUseTemplate = async (templateId: string) => {
-    setAddRecipeOpen(false)
-    setAddRecipeSearch('')
-    setLoading(true)
-    const { error } = await useTemplateForEvent(templateId, event.id)
-    if (!error) {
-      router.refresh()
-    }
-    setLoading(false)
-  }
-
-  const handleCreateRecipe = async () => {
-    const name = newRecipeName.trim()
-    if (!name) return
-    setLoading(true)
-    const { data: recipe, error: createError } = await createRecipe({ name })
-    if (createError || !recipe) { setLoading(false); return }
-    const { error: addError } = await addRecipeToEvent(event.id, recipe.id)
-    if (!addError) {
-      router.push(`/recipes/${recipe.id}?from=${event.id}`)
-    }
-    setLoading(false)
-  }
-
   const handleRemoveRecipe = async (erId: string) => {
     setEvent(e => ({ ...e, event_recipes: e.event_recipes.filter(r => r.id !== erId) }))
     await removeRecipeFromEvent(erId, event.id)
@@ -148,76 +79,6 @@ export function EventDetail({
     setEvent(e => ({ ...e, event_recipes: e.event_recipes.map(r => r.id === erId ? { ...r, quantity: qty } : r) }))
     await updateEventRecipe(erId, { quantity: qty })
   }
-
-  // Event item handlers
-  const resetAddItemForm = () => {
-    setAddItemType('hard_good')
-    setAddItemCatalogId('')
-    setAddItemMiscName('')
-    setAddItemMiscCost(0)
-    setAddItemQty(1)
-    setAddingItem(false)
-  }
-
-  const handleAddItem = async () => {
-    setAddItemLoading(true)
-
-    let itemName = ''
-    let wholesaleCostSnapshot = 0
-    let hardGoodId: string | null = null
-    let rentalId: string | null = null
-
-    if (addItemType === 'hard_good') {
-      const hg = hardGoods.find(h => h.id === addItemCatalogId)
-      if (!hg) { setAddItemLoading(false); return }
-      itemName = hg.name
-      wholesaleCostSnapshot = hg.wholesale_cost
-      hardGoodId = hg.id
-    } else if (addItemType === 'rental') {
-      const r = rentals.find(r => r.id === addItemCatalogId)
-      if (!r) { setAddItemLoading(false); return }
-      itemName = r.name
-      wholesaleCostSnapshot = r.acquisition_cost / Math.max(1, r.times_used)
-      rentalId = r.id
-    } else {
-      if (!addItemMiscName.trim()) { setAddItemLoading(false); return }
-      itemName = addItemMiscName.trim()
-      wholesaleCostSnapshot = addItemMiscCost
-    }
-
-    const { data, error } = await addEventItem(event.id, {
-      item_type: addItemType,
-      hard_good_id: hardGoodId,
-      rental_id: rentalId,
-      item_name: itemName,
-      wholesale_cost_snapshot: wholesaleCostSnapshot,
-      quantity: addItemQty,
-      sort_order: items.length,
-    })
-
-    if (!error && data) {
-      setItems(prev => [...prev, data])
-      resetAddItemForm()
-    }
-    setAddItemLoading(false)
-  }
-
-  const handleRemoveItem = async (itemId: string) => {
-    setItems(prev => prev.filter(i => i.id !== itemId))
-    await removeEventItem(itemId, event.id)
-  }
-
-  const handleItemQtyChange = async (itemId: string, qty: number) => {
-    setItems(prev => prev.map(i => i.id === itemId ? { ...i, quantity: qty } : i))
-    await updateEventItemQuantity(itemId, qty, event.id)
-  }
-
-  // Build event item entries for pricing engine
-  const eventItemEntries: EventItemEntry[] = items.map(item => ({
-    itemType: item.item_type,
-    wholesaleCostSnapshot: Number(item.wholesale_cost_snapshot),
-    quantity: Number(item.quantity),
-  }))
 
   // Event summary — services/tax/margin are event-level, not per-recipe
   const summaryEntries = event.event_recipes.map(er => {
@@ -260,30 +121,13 @@ export function EventDetail({
           hardGoodsMarkup: settings?.default_hardgoods_markup ?? 2.5,
           rentalMarkup: settings?.default_rental_markup ?? 2.5,
         },
-        eventItemEntries
+        []
       )
     : null
 
-  const groupedTemplates = useMemo(() => {
-    const q = addRecipeSearch.toLowerCase()
-    const filtered = allRecipes.filter(r => !q || r.name.toLowerCase().includes(q))
-    const groups = new Map<string, typeof allRecipes>()
-    for (const r of filtered) {
-      const key = r.event_type ?? 'other'
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key)!.push(r)
-    }
-    const result: { label: string; recipes: typeof allRecipes }[] = []
-    for (const { value, label } of EVENT_TYPE_OPTIONS) {
-      const group = groups.get(value)
-      if (group?.length) result.push({ label, recipes: group })
-    }
-    return result
-  }, [allRecipes, addRecipeSearch])
-
   // Save as Template dialog state
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
-  const [templateName, setTemplateName] = useState(event.name)
+  const [templateName, setTemplateName] = useState(event.client_name ?? '')
   const [templateLoading, setTemplateLoading] = useState(false)
   const [templateError, setTemplateError] = useState<string | null>(null)
   const [templateSavedId, setTemplateSavedId] = useState<string | null>(null)
@@ -300,48 +144,47 @@ export function EventDetail({
   }
 
   const openTemplateDialog = () => {
-    setTemplateName(event.name)
+    setTemplateName(event.client_name ?? '')
     setTemplateError(null)
     setTemplateSavedId(null)
     setTemplateDialogOpen(true)
   }
 
-  // Determine if the add-item form is ready to submit
-  const canAddItem =
-    addItemType === 'misc'
-      ? !!addItemMiscName.trim()
-      : !!addItemCatalogId
-
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/events" className="text-[#A89880] hover:text-[#4A3F35] transition-colors">
-          <ChevronLeft className="w-5 h-5" />
-        </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="font-serif text-2xl font-semibold text-[#4A3F35]">{event.name}</h1>
-            <button onClick={handleCycleStatus}>
-              <Badge variant={STATUS_VARIANTS[event.recipe_status]} className="cursor-pointer hover:opacity-80">
-                {STATUS_LABELS[event.recipe_status]}
-              </Badge>
-            </button>
-          </div>
-          <p className="text-sm text-[#A89880] mt-0.5">
-            {event.client_name && `${event.client_name} · `}
-            {event.event_date && new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-            {event.venue && ` · ${event.venue}`}
-          </p>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link href="/events" className="text-subtle hover:text-body transition-colors">Events</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage className="font-medium text-body">{event.client_name || '—'}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          {event.event_date && (
+            <div className="flex items-center gap-1.5 mt-1.5 text-sm text-subtle">
+              <CalendarDays className="w-3.5 h-3.5" />
+              <span>{new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
+            </div>
+          )}
         </div>
-        <Button variant="outline" size="sm" onClick={openTemplateDialog}>
-          <BookmarkPlus className="w-4 h-4 mr-1.5" /> Save as Template
-        </Button>
-        <Link href={`/orders?event=${event.id}`}>
-          <Button variant="outline" size="sm">
-            <ShoppingCart className="w-4 h-4 mr-1.5" /> Generate Order
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="cursor-pointer gap-1" onClick={openTemplateDialog}>
+            <BookmarkPlus className="w-3.5 h-3.5" /> Save as Template
           </Button>
-        </Link>
+          <Link href={`/orders?event=${event.id}`}>
+            <Button variant="outline" size="sm" className="cursor-pointer gap-1">
+              <ShoppingCart className="w-3.5 h-3.5" /> Generate Order
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* ─── Save as Template Dialog ────────────────────────────── */}
@@ -403,6 +246,54 @@ export function EventDetail({
         {/* Left column: recipes + event items */}
         <div className="col-span-2 space-y-3">
           {/* ── Recipes ── */}
+          {event.event_recipes.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20">
+              {/* Floral constellation */}
+              <div className="relative w-52 h-52 mb-8">
+                {/* Rings */}
+                <div className="absolute inset-0 rounded-full border-2 border-dashed border-blush/50" />
+                <div className="absolute inset-9 rounded-full border border-dashed border-forest/20" />
+                {/* Center */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-forest flex items-center justify-center">
+                    <Flower2 className="w-8 h-8 text-cream" />
+                  </div>
+                </div>
+                {/* Top — Sparkles (gold) */}
+                <div className="absolute top-1 left-1/2 -translate-x-1/2 w-9 h-9 rounded-full bg-white border border-gold/40 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-gold" />
+                </div>
+                {/* Right — Leaf (forest) */}
+                <div className="absolute top-1/2 -translate-y-1/2 right-0 w-9 h-9 rounded-full bg-white border border-forest/30 flex items-center justify-center">
+                  <Leaf className="w-4 h-4 text-forest" />
+                </div>
+                {/* Bottom — Sprout (forest) */}
+                <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-9 h-9 rounded-full bg-white border border-forest/30 flex items-center justify-center">
+                  <Sprout className="w-4 h-4 text-forest" />
+                </div>
+                {/* Left — Flower (blush) */}
+                <div className="absolute top-1/2 -translate-y-1/2 left-0 w-9 h-9 rounded-full bg-white border border-blush/40 flex items-center justify-center">
+                  <Flower className="w-4 h-4 text-blush" />
+                </div>
+                {/* Top-right — Heart (blush) */}
+                <div className="absolute top-5 right-4 w-8 h-8 rounded-full bg-white border border-blush/40 flex items-center justify-center">
+                  <Heart className="w-3.5 h-3.5 text-blush" />
+                </div>
+                {/* Bottom-left — Droplets (gold) */}
+                <div className="absolute bottom-5 left-4 w-8 h-8 rounded-full bg-white border border-gold/40 flex items-center justify-center">
+                  <Droplets className="w-3.5 h-3.5 text-gold" />
+                </div>
+              </div>
+              <p className="font-semibold text-body text-lg mb-1.5">Time to bloom</p>
+              <p className="text-sm text-subtle text-center max-w-[260px] mb-6">
+                Add your first recipe to start building this event's floral design.
+              </p>
+              <Button size="sm" className="cursor-pointer gap-1 bg-forest text-cream hover:bg-forest/90">
+                <Flower2 className="w-3.5 h-3.5" /> Add Recipe
+              </Button>
+            </div>
+          )}
+
           {event.event_recipes.map(er => {
             const recipe = er.recipes
             const wf = showPricing ? calculatePricingWaterfall(
@@ -464,272 +355,6 @@ export function EventDetail({
             )
           })}
 
-          {event.event_recipes.length === 0 && (
-            <div className="bg-white rounded-xl border border-[#E8E0D8] py-12 text-center">
-              <p className="text-sm text-[#A89880]">No recipes added yet. Search your recipe library below.</p>
-            </div>
-          )}
-
-          {/* Add recipe */}
-          <div className="mt-4">
-            {selectedRecipeId === '__new__' ? (
-              <div className="flex items-center gap-3">
-                <input
-                  autoFocus
-                  type="text"
-                  value={newRecipeName}
-                  onChange={e => setNewRecipeName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleCreateRecipe()
-                    if (e.key === 'Escape') { setSelectedRecipeId(''); setNewRecipeName('') }
-                  }}
-                  placeholder="Recipe name…"
-                  className="flex-1 h-9 rounded-md border border-[#E8E0D8] bg-white px-3 text-sm text-[#4A3F35] placeholder:text-[#A89880] outline-none focus:ring-1 focus:ring-[#2D5016]"
-                />
-                <Button onClick={handleCreateRecipe} disabled={!newRecipeName.trim() || loading} size="sm">
-                  <Plus className="w-4 h-4 mr-1.5" /> Create & Open
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => { setSelectedRecipeId(''); setNewRecipeName('') }}>
-                  Cancel
-                </Button>
-              </div>
-            ) : (
-              <Popover open={addRecipeOpen} onOpenChange={setAddRecipeOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    disabled={loading}
-                    className="w-full h-9 px-3 text-sm text-left rounded-md border border-[#E8E0D8] bg-white text-[#A89880] hover:bg-[#F5F1EC] flex items-center justify-between transition-colors disabled:opacity-50"
-                  >
-                    <span>Add a recipe template…</span>
-                    <ChevronDown className="w-4 h-4 opacity-50 shrink-0" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" sideOffset={4} className="w-[var(--radix-popover-trigger-width)] min-w-[280px] p-0">
-                  {/* Search */}
-                  <div className="flex items-center gap-2 px-3 py-2 border-b border-[#E8E0D8]">
-                    <Search className="w-3.5 h-3.5 text-[#A89880] shrink-0" />
-                    <input
-                      autoFocus
-                      value={addRecipeSearch}
-                      onChange={e => setAddRecipeSearch(e.target.value)}
-                      placeholder="Search templates…"
-                      className="flex-1 text-sm outline-none text-[#4A3F35] placeholder:text-[#A89880] bg-transparent"
-                    />
-                  </div>
-
-                  <div className="max-h-72 overflow-y-auto py-1">
-                    {/* New recipe option — always shown when not searching */}
-                    {!addRecipeSearch && (
-                      <button
-                        onClick={() => { setAddRecipeOpen(false); setSelectedRecipeId('__new__') }}
-                        className="w-full text-left px-3 py-2 text-sm font-medium text-forest hover:bg-muted"
-                      >
-                        + New recipe…
-                      </button>
-                    )}
-
-                    {/* Grouped templates */}
-                    {groupedTemplates.map(({ label, recipes }) => (
-                      <div key={label}>
-                        <p className="px-3 pt-2 pb-1 text-[10px] font-semibold text-subtle uppercase tracking-widest">
-                          {label}
-                        </p>
-                        {recipes.map(r => (
-                          <button
-                            key={r.id}
-                            onClick={() => handleUseTemplate(r.id)}
-                            className="w-full text-left px-3 py-1.5 text-sm text-body hover:bg-muted"
-                          >
-                            {r.name}
-                          </button>
-                        ))}
-                      </div>
-                    ))}
-
-                    {groupedTemplates.length === 0 && (
-                      <p className="px-3 py-4 text-sm text-center text-subtle">
-                        {addRecipeSearch ? 'No templates match your search.' : 'No templates yet. Create one in the Templates library.'}
-                      </p>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )}
-          </div>
-
-          {/* ── Event Items ── */}
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Package className="w-4 h-4 text-[#A89880]" />
-                <h2 className="text-sm font-semibold text-[#4A3F35]">Event Items</h2>
-                <span className="text-xs text-[#A89880]">Hard goods, rentals &amp; misc not tied to a recipe</span>
-              </div>
-              {!addingItem && (
-                <Button size="sm" variant="outline" onClick={() => setAddingItem(true)}>
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Item
-                </Button>
-              )}
-            </div>
-
-            {/* Existing event items */}
-            {items.length > 0 && (
-              <div className="space-y-1.5 mb-3">
-                {items.map(item => (
-                  <div key={item.id} className="bg-white rounded-lg border border-[#E8E0D8] px-4 py-2.5 flex items-center gap-3 group">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-[#4A3F35] truncate">{item.item_name}</span>
-                        <span className="text-xs text-[#A89880] shrink-0">{ITEM_TYPE_LABELS[item.item_type]}</span>
-                      </div>
-                      {showPricing && (
-                        <p className="text-xs text-[#A89880] mt-0.5 font-mono">
-                          {formatCurrency(Number(item.wholesale_cost_snapshot))} each
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleItemQtyChange(item.id, Math.max(1, Number(item.quantity) - 1))}
-                        className="w-6 h-6 rounded bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center text-xs">–</button>
-                      <span className="w-7 text-center text-sm font-medium">{Number(item.quantity)}×</span>
-                      <button
-                        onClick={() => handleItemQtyChange(item.id, Number(item.quantity) + 1)}
-                        className="w-6 h-6 rounded bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center text-xs">+</button>
-                    </div>
-                    <Button size="icon-sm" variant="ghost" onClick={() => handleRemoveItem(item.id)}>
-                      <Trash2 className="w-3.5 h-3.5 text-[#C0392B]" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {items.length === 0 && !addingItem && (
-              <p className="text-xs text-[#A89880] py-2">No event-level items yet.</p>
-            )}
-
-            {/* Add item form */}
-            {addingItem && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-xl border border-[#E8E0D8] p-4 space-y-3"
-              >
-                {/* Type selector */}
-                <div className="flex gap-2">
-                  {(['hard_good', 'rental', 'misc'] as EventItemType[]).map(t => (
-                    <button
-                      key={t}
-                      onClick={() => { setAddItemType(t); setAddItemCatalogId('') }}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                        addItemType === t
-                          ? 'bg-[#2D5016] text-white'
-                          : 'bg-[#F5F1EC] text-[#4A3F35] hover:bg-[#E8E0D8]'
-                      }`}
-                    >
-                      {ITEM_TYPE_LABELS[t]}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex items-end gap-3">
-                  {/* Catalog picker or misc name+cost */}
-                  {addItemType === 'hard_good' && (
-                    <div className="flex-1">
-                      <Select value={addItemCatalogId} onValueChange={setAddItemCatalogId}>
-                        <SelectTrigger className="h-9 text-sm">
-                          <SelectValue placeholder="Select hard good…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {hardGoods.map(hg => (
-                            <SelectItem key={hg.id} value={hg.id}>
-                              {hg.name}
-                              {showPricing && <span className="text-[#A89880] ml-1">· {formatCurrency(hg.wholesale_cost)}</span>}
-                            </SelectItem>
-                          ))}
-                          {hardGoods.length === 0 && (
-                            <div className="px-2 py-1.5 text-xs text-[#A89880]">No hard goods in catalog</div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {addItemType === 'rental' && (
-                    <div className="flex-1">
-                      <Select value={addItemCatalogId} onValueChange={setAddItemCatalogId}>
-                        <SelectTrigger className="h-9 text-sm">
-                          <SelectValue placeholder="Select rental…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {rentals.map(r => {
-                            const costPerUse = r.acquisition_cost / Math.max(1, r.times_used)
-                            return (
-                              <SelectItem key={r.id} value={r.id}>
-                                {r.name}
-                                {showPricing && <span className="text-[#A89880] ml-1">· {formatCurrency(costPerUse)}/use</span>}
-                              </SelectItem>
-                            )
-                          })}
-                          {rentals.length === 0 && (
-                            <div className="px-2 py-1.5 text-xs text-[#A89880]">No rentals in catalog</div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {addItemType === 'misc' && (
-                    <>
-                      <div className="flex-1">
-                        <input
-                          autoFocus
-                          type="text"
-                          value={addItemMiscName}
-                          onChange={e => setAddItemMiscName(e.target.value)}
-                          placeholder="Item name…"
-                          className="w-full h-9 rounded-md border border-[#E8E0D8] bg-white px-3 text-sm text-[#4A3F35] placeholder:text-[#A89880] outline-none focus:ring-1 focus:ring-[#2D5016]"
-                        />
-                      </div>
-                      <div className="w-28">
-                        <div className="flex items-center border border-[#E8E0D8] rounded-md overflow-hidden bg-white h-9">
-                          <span className="px-2 text-xs text-[#A89880]">$</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={addItemMiscCost}
-                            onChange={e => setAddItemMiscCost(parseFloat(e.target.value) || 0)}
-                            placeholder="0.00"
-                            className="flex-1 text-sm text-[#4A3F35] bg-transparent outline-none pr-2 min-w-0"
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Quantity */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => setAddItemQty(q => Math.max(1, q - 1))}
-                      className="w-7 h-9 rounded-md bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center">–</button>
-                    <span className="w-7 text-center text-sm font-medium">{addItemQty}</span>
-                    <button
-                      onClick={() => setAddItemQty(q => q + 1)}
-                      className="w-7 h-9 rounded-md bg-[#F5F1EC] hover:bg-[#E8E0D8] flex items-center justify-center">+</button>
-                  </div>
-
-                  <Button size="sm" onClick={handleAddItem} disabled={!canAddItem || addItemLoading}>
-                    Add
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={resetAddItemForm}>
-                    Cancel
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-          </div>
         </div>
 
         {/* Event summary panel */}

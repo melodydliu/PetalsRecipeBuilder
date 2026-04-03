@@ -18,7 +18,7 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
   const [events, setEvents] = useState(initialEvents)
   const [showCreate, setShowCreate] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', client_name: '', event_date: '', venue: '' })
+  const [form, setForm] = useState({ client_name: '', event_date: '', venue: '' })
   const [loading, setLoading] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
@@ -27,15 +27,15 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
     setLoading(true)
     setCreateError(null)
     const { data, error } = await createEvent({
-      name: form.name,
-      client_name: form.client_name || undefined,
+      name: form.client_name,
+      client_name: form.client_name,
       event_date: form.event_date || undefined,
       venue: form.venue || undefined,
     })
     if (data) {
       setEvents(prev => [data as EventWithCount, ...prev])
       setShowCreate(false)
-      setForm({ name: '', client_name: '', event_date: '', venue: '' })
+      setForm({ client_name: '', event_date: '', venue: '' })
       router.push(`/events/${data.id}`)
     } else {
       setCreateError(error ?? 'Failed to create event')
@@ -141,12 +141,8 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
           <DialogHeader><DialogTitle>Create event</DialogTitle></DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Event name *</Label>
-              <Input placeholder="Smith Wedding" value={form.name} onChange={e => set('name', e.target.value)} required />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Client name</Label>
-              <Input placeholder="Sarah & James Smith" value={form.client_name} onChange={e => set('client_name', e.target.value)} />
+              <Label>Client name *</Label>
+              <Input placeholder="Sarah & James Smith" value={form.client_name} onChange={e => set('client_name', e.target.value)} required />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -163,7 +159,7 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
             )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-              <Button type="submit" disabled={loading || !form.name.trim()}>
+              <Button type="submit" disabled={loading || !form.client_name.trim()}>
                 {loading ? 'Creating…' : 'Create event'}
               </Button>
             </DialogFooter>

@@ -203,7 +203,7 @@ export function OrderGenerator({ events, defaultWasteBuffer, preselectedEventId 
                 className="rounded border-[#E8E0D8] text-[#2D5016] focus:ring-[#2D5016]"
               />
               <div className="min-w-0">
-                <p className="text-sm font-medium text-[#4A3F35] group-hover:text-[#2D5016] truncate">{event.name}</p>
+                <p className="text-sm font-medium text-[#4A3F35] group-hover:text-[#2D5016] truncate">{event.client_name || '—'}</p>
                 {event.event_date && (
                   <p className="text-xs text-[#A89880]">
                     {new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
