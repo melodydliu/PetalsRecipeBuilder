@@ -2,12 +2,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Trash2, Copy } from 'lucide-react'
+import { Plus, Trash2, Copy, CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
 import { createEvent, deleteEvent, duplicateEvent } from './actions'
 import type { Event } from '@/types/database'
 
@@ -19,6 +21,7 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
   const [showCreate, setShowCreate] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [form, setForm] = useState({ client_name: '', event_date: '', venue: '' })
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
@@ -136,7 +139,7 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showCreate} onOpenChange={v => { setShowCreate(v); if (!v) setCreateError(null) }}>
+      <Dialog open={showCreate} onOpenChange={v => { setShowCreate(v); if (!v) { setCreateError(null); setDatePickerOpen(false) } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Create event</DialogTitle></DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4">
@@ -147,7 +150,34 @@ export function EventList({ initialEvents, role }: { initialEvents: EventWithCou
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Event date</Label>
-                <Input type="date" value={form.event_date} onChange={e => set('event_date', e.target.value)} />
+                <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <button type="button" className="w-full h-9 px-3 flex items-center gap-2 rounded-md border border-border bg-white text-sm text-left cursor-pointer hover:bg-muted transition-colors">
+                      <CalendarDays className="w-3.5 h-3.5 text-subtle shrink-0" />
+                      {form.event_date
+                        ? new Date(form.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                        : <span className="text-subtle">Pick a date</span>
+                      }
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={form.event_date ? new Date(form.event_date + 'T00:00:00') : undefined}
+                      onSelect={date => {
+                        if (date) {
+                          const y = date.getFullYear()
+                          const m = String(date.getMonth() + 1).padStart(2, '0')
+                          const d = String(date.getDate()).padStart(2, '0')
+                          set('event_date', `${y}-${m}-${d}`)
+                        } else {
+                          set('event_date', '')
+                        }
+                        setDatePickerOpen(false)
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-1.5">
                 <Label>Venue</Label>

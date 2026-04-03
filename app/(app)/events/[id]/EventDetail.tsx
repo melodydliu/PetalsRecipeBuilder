@@ -38,6 +38,7 @@ export function EventDetail({
 }) {
   const router = useRouter()
   const [event, setEvent] = useState(initialEvent)
+  useEffect(() => { setEvent(initialEvent) }, [initialEvent])
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Event confirmed state — resets when no recipes remain

@@ -1,55 +1,60 @@
-'use client'
-import * as React from 'react'
-import { Slot } from '@radix-ui/react-slot'
-import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from '@/lib/utils'
+import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
+import { Slot } from "radix-ui"
+
+import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:ring-[3px] focus-visible:ring-forest/40 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default:     'bg-[#2D5016] text-white hover:bg-[#3D6B20] focus-visible:ring-[#2D5016]',
-        secondary:   'bg-[#F5F1EC] text-[#4A3F35] hover:bg-[#E8E0D8]',
-        outline:     'border border-[#E8E0D8] bg-white text-[#4A3F35] hover:bg-[#F5F1EC]',
-        ghost:       'text-[#4A3F35] hover:bg-[#F5F1EC]',
-        destructive: 'bg-[#C0392B] text-white hover:bg-[#A93226]',
-        blush:       'bg-[#E8A598] text-white hover:bg-[#D8948A]',
-        link:        'text-[#2D5016] underline-offset-4 hover:underline p-0 h-auto',
+        default: "bg-forest text-cream hover:bg-forest/90",
+        destructive: "bg-danger text-white hover:bg-danger/90 focus-visible:ring-danger/30",
+        outline: "border border-border bg-white hover:bg-muted hover:text-body",
+        secondary: "bg-muted text-body hover:bg-border",
+        ghost: "hover:bg-muted hover:text-body",
+        link: "text-forest underline-offset-4 hover:underline",
       },
       size: {
-        default: 'h-9 px-4 py-2',
-        sm:      'h-8 px-3 text-xs',
-        lg:      'h-11 px-6',
-        icon:    'h-9 w-9 p-0',
-        'icon-sm': 'h-7 w-7 p-0',
+        default: "h-9 px-4 py-2 has-[>svg]:px-3",
+        xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
+        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
+        icon: "size-9",
+        "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-8",
+        "icon-lg": "size-10",
       },
     },
     defaultVariants: {
-      variant: 'default',
-      size: 'default',
+      variant: "default",
+      size: "default",
     },
   }
 )
 
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
-  asChild?: boolean
-}
+function Button({
+  className,
+  variant = "default",
+  size = "default",
+  asChild = false,
+  ...props
+}: React.ComponentProps<"button"> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean
+  }) {
+  const Comp = asChild ? Slot.Root : "button"
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : 'button'
-    return (
-      <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
-        ref={ref}
-        {...props}
-      />
-    )
-  }
-)
-Button.displayName = 'Button'
+  return (
+    <Comp
+      data-slot="button"
+      data-variant={variant}
+      data-size={size}
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
+    />
+  )
+}
 
 export { Button, buttonVariants }
