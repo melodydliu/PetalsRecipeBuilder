@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
@@ -40,8 +40,11 @@ export function EventDetail({
   const [event, setEvent] = useState(initialEvent)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Event confirmed state
+  // Event confirmed state — resets when no recipes remain
   const [eventConfirmed, setEventConfirmed] = useState(false)
+  useEffect(() => {
+    if (event.event_recipes.length === 0) setEventConfirmed(false)
+  }, [event.event_recipes.length])
 
   // Delete confirmation
   const [confirmDeleteErid, setConfirmDeleteErid] = useState<string | null>(null)
