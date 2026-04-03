@@ -500,11 +500,9 @@ export function EventDetail({
                   )}
                 </div>
 
-                {eventConfirmed && (
-                  <Button size="sm" variant="outline" className="cursor-pointer shrink-0 text-xs h-7 px-2.5">
-                    Create Recipe
-                  </Button>
-                )}
+                <Button size="sm" variant="outline" className="cursor-pointer shrink-0 text-xs h-7 px-2.5">
+                  Create Recipe
+                </Button>
 
                 <Button size="icon-sm" variant="ghost" className="cursor-pointer" onClick={() => setConfirmDeleteErid(er.id)}>
                   <Trash2 className="w-3.5 h-3.5 text-[#C0392B]" />
